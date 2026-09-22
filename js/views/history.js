@@ -1,87 +1,340 @@
-/* views/history.js — the ledger of finished gigs. */
-window.App = window.App || {}; App.Views = App.Views || {};
+/* ==========================================================================
+   Loreto's Catering Tracker — Views: Event History (js/views/history.js)
+   - Optimized for iPhone 5s (320px screen width) & iOS 12 Mobile Safari
+   - Plain text manifest export on past events (SMS / WhatsApp / Notepad)
+   - Event summary: 100% Gear Recovery vs Consumed Supplies Used
+   - Tracks shelf inventory write-off and consumable deduction status
+   - Replaced alarm error icon with clean calendar/event iconography
+   - Wording standardized to "Event history"
+   ========================================================================== */
+window.App = window.App || {};
+App.Views = App.Views || {};
+
 App.Views.history = (function () {
   var U = App.UI, S = App.Store;
-  var year = '';
+  var q = '';
 
   function render() {
-    var all = S.history();
-    if (!all.length) {
-      return U.empty('\uD83D\uDCD6', 'No finished events yet',
-        'Once you close an event it lands here with the count of what came home.');
-    }
-    var years = {};
-    all.forEach(function (e) { years[(e.date || '').slice(0, 4)] = 1; });
-    var ykeys = Object.keys(years).sort().reverse();
-    var list = all.filter(function (e) { return year ? (e.date || '').slice(0, 4) === year : true; });
+    var historyList = S.history();
+    var query = q.toLowerCase().trim();
 
-    var totOut = 0, totBack = 0;
-    all.forEach(function (e) { var t = S.tally(e); totOut += t.out; totBack += t.back; });
-    var rate = totOut ? Math.round(totBack / totOut * 100) : 0;
+    var filtered = historyList.filter(function (e) {
+      if (!query) return true;
+      var hay = (e.name + ' ' + (e.venue || '') + ' ' + (e.date || '')).toLowerCase();
+      return hay.indexOf(query) > -1;
+    });
 
-    return '<div class="card"><div class="row row-between">' +
-        '<div><div class="kpi-n">' + rate + '%</div><div class="kpi-l">of everything ever loaded came back</div></div>' +
-        '<div style="text-align:right"><div class="kpi-n">' + all.length + '</div><div class="kpi-l">events</div></div>' +
-      '</div></div>' +
-      (ykeys.length > 1 ? '<div class="chips"><button class="chip' + (year ? '' : ' on') + '" data-act="year" data-id="">All years</button>' +
-        ykeys.map(function (y) { return '<button class="chip' + (year === y ? ' on' : '') + '" data-act="year" data-id="' + y + '">' + y + '</button>'; }).join('') + '</div>' : '') +
-      '<div class="list">' + list.map(row).join('') + '</div>';
-  }
+    var rows = filtered.map(function (ev) {
+      var t = S.tally(ev);
+      var isPerfect = t.pct === 100;
 
-  function row(e) {
-    var t = S.tally(e);
-    var good = t.missing === 0;
-    return '<button class="item" data-act="open" data-id="' + e.id + '">' +
-      '<span class="thumb">' + (good ? '\u2705' : '\u26A0\uFE0F') + '</span>' +
-      '<span class="grow"><span class="item-name truncate">' + U.esc(e.name) + '</span>' +
-      '<span class="item-sub">' + U.esc(U.fmtDate(e.date)) + ' \u00b7 ' +
-        (good ? 'everything home' : t.missing + ' missing') + '</span></span>' +
-      '<span class="item-qty">' + t.pct + '%</span></button>';
-  }
-
-  function detail(e) {
-    var t = S.tally(e);
-    var lines = e.lines.map(function (l) {
-      var short = l.out - l.back;
-      return '<div class="item"><span class="grow"><span class="item-name truncate">' + U.esc(l.name) + '</span>' +
-        '<span class="item-sub">' + l.back + ' of ' + l.out + ' back' + (short ? ' \u00b7 ' + short + ' short' : '') + '</span></span>' +
-        U.tag(l.tagLabel, l.tagColor, l.tagStyle) + '</div>';
+      return '<button type="button" class="item" data-act="open-history-detail" data-id="' + ev.id + '">' +
+        '<span class="thumb" style="' + (isPerfect ? 'color:var(--foliage);background:var(--foliage-tint)' : 'color:var(--inasal-orange);background:var(--inasal-soft)') + '">' +
+          U.icon(isPerfect ? 'check' : 'calendar') +
+        '</span>' +
+        '<span class="grow truncate mr8">' +
+          '<span class="item-name truncate">' + U.esc(ev.name) + '</span>' +
+          '<span class="item-sub truncate">' +
+            U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) +
+          '</span>' +
+          '<span class="row mt4" style="flex-wrap:wrap;gap:4px">' +
+            '<span class="tag ' + (isPerfect ? 'tag-green' : 'tag-orange') + '" style="font-size:9.5px">' +
+              t.pct + '% recovered' +
+            '</span>' +
+            (t.missing > 0 ? '<span class="tag tag-red" style="font-size:9.5px">' + t.missing + ' lost</span>' : '') +
+            (t.consumed > 0 ? '<span class="tag tag-yellow" style="font-size:9.5px">' + t.consumed + ' used</span>' : '') +
+            (t.foreign > 0 ? '<span class="tag tag-stamp" style="font-size:9.5px">' + t.foreign + ' foreign</span>' : '') +
+          '</span>' +
+        '</span>' +
+        '<span class="item-qty">' + U.icon('chevronRight') + '</span>' +
+      '</button>';
     }).join('');
-    U.openSheet(e.name,
-      '<p class="muted">' + U.esc(e.venue || 'No venue') + ' \u00b7 ' + U.esc(U.fmtDate(e.date)) + '</p>' +
-      (e.note ? '<p class="mt8" style="font-size:14px">' + U.esc(e.note) + '</p>' : '') +
-      '<div class="card mt12"><div class="row row-between">' +
-        '<div><div class="kpi-n">' + t.pct + '%</div><div class="kpi-l">came home</div></div>' +
-        '<div style="text-align:right"><div class="kpi-n">' + t.missing + '</div><div class="kpi-l">pieces missing</div></div>' +
-      '</div>' + (e.deducted ? '<p class="muted mt8">Missing pieces were written off the shelf.</p>' : '') + '</div>' +
-      '<h2 class="section-title">What went out</h2><div class="list">' + lines + '</div>' +
-      (e.notOurs.length ? '<h2 class="section-title">Flagged as not ours</h2><div class="list">' +
-        e.notOurs.map(function (n) {
-          return '<div class="item"><span class="thumb">\u26A0\uFE0F</span><span class="grow">' +
-            '<span class="item-name truncate">' + U.esc(n.label) + '</span>' +
-            '<span class="item-sub">' + n.qty + ' pc' + (n.note ? ' \u00b7 ' + U.esc(n.note) : '') + '</span></span></div>';
-        }).join('') + '</div>' : '') +
-      '<button class="btn btn-ghost mt12" data-act="repeat" data-id="' + e.id + '">Save this load-out as a preset</button>' +
-      '<button class="btn btn-danger" data-act="del" data-id="' + e.id + '">Delete this record</button>', onAct);
+
+    return '<div class="search">' +
+        U.icon('search', 'search-icon') +
+        '<input class="input" id="hist-q" type="search" placeholder="Search past events by name or venue" value="' + U.esc(q) + '">' +
+      '</div>' +
+
+      '<div class="row row-between mb8">' +
+        '<span class="muted" style="font-size:12px">' + filtered.length + ' of ' + historyList.length + ' completed events</span>' +
+        (historyList.length ? '<span class="muted" style="font-size:12px;color:var(--foliage);font-weight:600">Archived</span>' : '') +
+      '</div>' +
+
+      (filtered.length
+        ? '<div class="list">' + rows + '</div>'
+        : U.empty('history', q ? 'No past events match' : 'No event history yet',
+            q ? 'Try another keyword.' : 'When you finish and close an event in Catering mode, it will be safely filed here.'));
   }
 
-  function onAct(act, el) {
-    var id = el.getAttribute('data-id');
-    if (act === 'year') { year = id; App.rerender(); }
-    else if (act === 'open') detail(S.event(id));
-    else if (act === 'repeat') {
-      var e = S.event(id);
-      S.savePresetFromEvent(e, e.name);
-      U.closeSheet(); U.toast('Preset saved.');
-    }
-    else if (act === 'del') {
-      U.confirm('Delete record', 'The event disappears from the ledger for good.', 'Delete', function () {
-        S.removeEvent(id); App.rerender(); U.toast('Record deleted.');
+  function mounted() {
+    var qInput = document.getElementById('hist-q');
+    if (qInput) {
+      qInput.addEventListener('input', function () {
+        q = qInput.value;
+        var pos = qInput.selectionStart;
+        App.rerenderQuiet();
+        var reFocus = document.getElementById('hist-q');
+        if (reFocus) {
+          reFocus.focus();
+          try { reFocus.setSelectionRange(pos, pos); } catch (e) {}
+        }
       });
     }
   }
 
-  function mounted() { }
+  /* Plain Text Manifest Modal for Past Event */
+  function openTextManifest(ev) {
+    if (!ev) return;
+    var rawText = S.generateEventManifestText(ev);
 
-  return { title: 'Past events', render: render, mounted: mounted, onAct: onAct };
+    var html =
+      '<p class="muted mb8" style="font-size:12px">' +
+        'Copy and paste this plain text summary into Notepad, WhatsApp, or SMS to send to drivers and event staff.' +
+      '</p>' +
+      '<div class="field mb12">' +
+        '<textarea class="input" id="manifest-text-box" readonly style="height:220px;font-family:monospace;font-size:11px;line-height:1.4;white-space:pre;background:var(--sand-soft);border-color:var(--line-strong)">' +
+          U.esc(rawText) +
+        '</textarea>' +
+      '</div>' +
+      '<div class="sheet-sticky-footer">' +
+        '<button type="button" class="btn btn-primary" data-act="copy-manifest-clipboard">' +
+          U.icon('check', 'mr4') + ' Copy text to clipboard' +
+        '</button>' +
+        '<button type="button" class="btn btn-ghost mt8" data-act="sheet-close">Close</button>' +
+      '</div>';
+
+    U.openSheet('Event Manifest (Text)', html, onAct);
+  }
+
+  /* Detailed Past Event Inspector */
+  function openHistoryDetail(id) {
+    var ev = S.event(id);
+    if (!ev) return;
+    var t = S.tally(ev);
+
+    var missingDurable = ev.lines.filter(function (l) { return !l.isConsumable && l.out > l.back; });
+    var consumedSupplies = ev.lines.filter(function (l) { return l.isConsumable && l.out > l.back; });
+    var staffList = (ev.staffIds || []).map(function (sid) { return S.staffMember(sid); }).filter(Boolean);
+
+    // Missing durable equipment section
+    var missingHtml = missingDurable.length ? (
+      '<div class="card mb12" style="border-left:3.5px solid var(--alert)">' +
+        '<h3 style="font-size:13px;font-weight:700;color:var(--alert);margin-bottom:6px">' +
+          U.icon('alert', 'mr4') + ' Unrecovered Equipment (' + missingDurable.length + ' kinds)' +
+        '</h3>' +
+        '<div class="list mb8">' +
+          missingDurable.map(function (l) {
+            return '<div class="item" style="padding:6px 0;border:none">' +
+              '<span class="grow truncate">' +
+                '<span class="item-name truncate" style="font-size:13px">' + U.esc(l.name) + '</span>' +
+                '<span class="item-sub" style="color:var(--alert)">' + (l.out - l.back) + ' of ' + l.out + ' ' + U.esc(l.unit) + ' missing</span>' +
+              '</span>' +
+              U.tag(l.brand || l.tagLabel, l.tagColor, l.tagStyle) +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<span class="muted" style="font-size:11px">' +
+          (ev.deducted ? 'Written off from inventory stock' : 'Not written off from inventory') +
+        '</span>' +
+      '</div>'
+    ) : (
+      '<div class="card mb12" style="background:var(--success-tint);border-color:rgba(36,90,62,0.3)">' +
+        '<span style="font-size:12.5px;color:var(--success);font-weight:600">' +
+          U.icon('check', 'mr4') + ' 100% of durable equipment came home safe' +
+        '</span>' +
+      '</div>'
+    );
+
+    // Consumed supplies section
+    var suppliesHtml = consumedSupplies.length ? (
+      '<div class="card mb12" style="border-left:3.5px solid var(--gold, #D49B42)">' +
+        '<h3 style="font-size:13px;font-weight:700;margin-bottom:6px">' +
+          U.icon('sparkles', 'mr4') + ' Supplies Consumed on Site (' + t.consumed + ' items)' +
+        '</h3>' +
+        '<div class="list mb8">' +
+          consumedSupplies.map(function (l) {
+            return '<div class="item" style="padding:6px 0;border:none">' +
+              '<span class="grow truncate">' +
+                '<span class="item-name truncate" style="font-size:13px">' + U.esc(l.name) + '</span>' +
+                '<span class="item-sub">' + (l.out - l.back) + ' ' + U.esc(l.unit) + ' consumed (' + l.back + ' returned)</span>' +
+              '</span>' +
+              '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<span class="muted" style="font-size:11px">' +
+          (ev.deductedConsumed !== false ? 'Deducted from inventory stock' : 'Not deducted from inventory') +
+        '</span>' +
+      '</div>'
+    ) : '';
+
+    // Complete load-out rows
+    var allLinesHtml = ev.lines.map(function (l) {
+      var isConsumable = !!l.isConsumable;
+      var diff = l.out - l.back;
+      var statusBadge = '';
+
+      if (isConsumable) {
+        statusBadge = diff === 0
+          ? '<span class="tag tag-green" style="font-size:9.5px">Unused (' + l.out + ' back)</span>'
+          : '<span class="tag tag-yellow" style="font-size:9.5px">' + diff + ' used &middot; ' + l.back + ' back</span>';
+      } else {
+        statusBadge = diff === 0
+          ? '<span class="tag tag-green" style="font-size:9.5px">All ' + l.out + ' back</span>'
+          : '<span class="tag tag-red" style="font-size:9.5px">' + diff + ' missing</span>';
+      }
+
+      return '<div class="item" style="padding:8px 0">' +
+        '<span class="grow truncate mr8">' +
+          '<span class="item-name truncate" style="font-size:13px">' + U.esc(l.name) + '</span>' +
+          '<span class="item-sub truncate">' +
+            (l.brand ? U.esc(l.brand) + ' &middot; ' : '') + 'Staged: ' + l.out + ' ' + U.esc(l.unit) +
+          '</span>' +
+        '</span>' +
+        statusBadge +
+      '</div>';
+    }).join('');
+
+    // Crew assigned
+    var crewHtml = staffList.length ? (
+      '<div class="card mb12">' +
+        '<h3 style="font-size:13px;font-weight:700;margin-bottom:6px">' + U.icon('users', 'mr4') + ' Working Crew (' + staffList.length + ')</h3>' +
+        '<div class="list">' +
+          staffList.map(function (m) {
+            return '<div class="item" style="padding:6px 0;border:none">' +
+              '<span class="grow truncate">' +
+                '<span class="item-name truncate" style="font-size:13px">' + U.esc(m.name) + '</span>' +
+                '<span class="item-sub truncate">' + U.esc(m.role || 'Staff') + '</span>' +
+              '</span>' +
+              (m.phone ? '<a class="btn btn-ghost btn-sm" href="tel:' + U.esc(m.phone) + '" style="min-height:30px;padding:2px 8px;font-size:11.5px;width:auto">' + U.icon('phone', 'mr4') + 'Call</a>' : '') +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>'
+    ) : '';
+
+    // Foreign pieces in van
+    var foreignHtml = ev.notOurs && ev.notOurs.length ? (
+      '<div class="card mb12" style="border-left:3.5px solid var(--inasal-orange)">' +
+        '<h3 style="font-size:13px;font-weight:700;color:var(--inasal-orange);margin-bottom:6px">' + U.icon('alert', 'mr4') + ' Foreign Pieces Logged (' + t.foreign + ')</h3>' +
+        '<div class="list">' +
+          ev.notOurs.map(function (n) {
+            return '<div class="item" style="padding:4px 0;border:none">' +
+              '<span class="grow truncate">' +
+                '<span class="item-name truncate" style="font-size:13px">' + U.esc(n.label) + '</span>' +
+                '<span class="item-sub">' + n.qty + ' pc' + (n.note ? ' &middot; ' + U.esc(n.note) : '') + '</span>' +
+              '</span>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>'
+    ) : '';
+
+    var html =
+      '<div class="card mb12">' +
+        '<div class="row row-between mb4">' +
+          '<div>' +
+            '<h3 style="font-size:16px;font-weight:700;color:var(--timber-ink)">' + U.esc(ev.name) + '</h3>' +
+            '<p class="muted mt4" style="font-size:12px">' +
+              U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) +
+            '</p>' +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<div style="font-size:23px;font-weight:700;color:var(--foliage);font-family:Iowan Old Style,serif">' + t.pct + '%</div>' +
+            '<div class="muted" style="font-size:11px">recovery</div>' +
+          '</div>' +
+        '</div>' +
+        (ev.note ? '<div class="divider"></div><p style="font-size:12px;color:var(--timber-ink)"><strong style="color:var(--timber-ink)">Event Notes:</strong> ' + U.esc(ev.note) + '</p>' : '') +
+      '</div>' +
+
+      missingHtml +
+      suppliesHtml +
+      crewHtml +
+      foreignHtml +
+
+      '<div class="card mb12">' +
+        '<h3 style="font-size:13px;font-weight:700;margin-bottom:6px">' + U.icon('truck', 'mr4') + ' Complete Gear & Supply Summary</h3>' +
+        '<div class="list">' + allLinesHtml + '</div>' +
+      '</div>' +
+
+      '<div class="sheet-sticky-footer">' +
+        '<button type="button" class="btn btn-primary btn-sm mb6" data-act="hist-export-manifest" data-id="' + ev.id + '">' +
+          U.icon('layers', 'mr4') + ' Export text manifest' +
+        '</button>' +
+        '<div class="row mb6" style="gap:6px">' +
+          '<button type="button" class="btn btn-ghost grow btn-sm" data-act="save-gig-as-preset" data-id="' + ev.id + '">' +
+            U.icon('plus', 'mr4') + ' Save preset' +
+          '</button>' +
+          '<button type="button" class="btn btn-danger grow btn-sm" data-act="del-history-event" data-id="' + ev.id + '">' +
+            U.icon('trash', 'mr4') + ' Delete' +
+          '</button>' +
+        '</div>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="sheet-close">Done</button>' +
+      '</div>';
+
+    U.openSheet('Event Details: ' + ev.name, html, onAct);
+  }
+
+  function onAct(act, el) {
+    var id = el ? el.getAttribute('data-id') : '';
+
+    if (act === 'open-history-detail') {
+      openHistoryDetail(id);
+      return;
+    }
+
+    if (act === 'hist-export-manifest') {
+      var targetEv = S.event(id);
+      if (targetEv) openTextManifest(targetEv);
+      return;
+    }
+
+    if (act === 'copy-manifest-clipboard') {
+      var box = document.getElementById('manifest-text-box');
+      if (box) {
+        box.select();
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(box.value).then(function () {
+              U.toast('Manifest copied to clipboard!');
+            });
+          } else {
+            document.execCommand('copy');
+            U.toast('Manifest copied to clipboard!');
+          }
+        } catch (e) {
+          U.toast('Press & hold text to copy.');
+        }
+      }
+      return;
+    }
+
+    if (act === 'save-gig-as-preset') {
+      var ev = S.event(id);
+      if (!ev) return;
+      var newP = S.savePresetFromEvent(ev, ev.name + ' Kit', 'Preset created from ' + ev.name + ' (' + U.fmtDate(ev.date) + ')');
+      U.closeSheet();
+      App.go('catering');
+      U.toast('Kit preset "' + newP.name + '" created.');
+      return;
+    }
+
+    if (act === 'del-history-event') {
+      U.confirm('Delete event record', 'Permanently remove this booking from event history?', 'Delete', function () {
+        S.removeEvent(id);
+        U.closeSheet();
+        App.rerenderQuiet();
+        U.toast('Event record deleted.');
+      });
+      return;
+    }
+  }
+
+  return {
+    title: 'Event history',
+    render: render,
+    mounted: mounted,
+    onAct: onAct,
+    openHistoryDetail: openHistoryDetail
+  };
 })();

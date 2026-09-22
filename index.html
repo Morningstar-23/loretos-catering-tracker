@@ -1,87 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-AU">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Loreto's Catering Tracker</title>
-<meta name="description" content="Offline gear tracker for Loreto's Kitchen catering.">
-<meta name="theme-color" content="#1E3A2F">
-<link rel="manifest" href="manifest.webmanifest">
-
-<!-- iOS web clip -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Loreto's">
-<meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="icon" href="icons/icon-192.png">
-
-<link rel="stylesheet" href="css/app.css">
+  <meta charset="utf-8">
+  <title>Loreto's Kitchen — Catering Tracker</title>
+  
+  <!-- Optimized Viewport for iPhone 5s (iOS 12 Safari) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- Standard & Apple Mobile Web App PWA Configuration -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Loreto's">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#FAF7F2">
+  
+  <!-- Manifest & Icons -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  
+  <!-- Primary Application Styles -->
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
-<div id="splash" aria-hidden="true">
-  <div class="splash-mark">
-    <span class="splash-l">L</span>
-    <span class="splash-name">Loreto&rsquo;s Kitchen</span>
-    <span class="splash-sub">Catering gear, counted home</span>
+  <!-- Splash Screen (Fades out automatically in app.js) -->
+  <div id="splash">
+    <div style="color:var(--terracotta);margin-bottom:8px">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+      </svg>
+    </div>
+    <h1 class="splash-title">Loreto's Kitchen</h1>
+    <p style="color:var(--ink-soft);font-size:12px;margin-top:4px">Catering Gear & Van Tracker</p>
   </div>
-</div>
 
-<header id="topbar">
-  <div class="topbar-inner">
-    <h1 id="topbar-title">Dashboard</h1>
-    <button type="button" class="topbar-act" data-act="topbar" hidden></button>
-  </div>
-</header>
-
-<main id="view" role="main"></main>
-
-<nav id="tabbar" role="navigation">
-  <a class="tab" href="#/dashboard" data-tab="dashboard">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1z"/></svg>
-    <span>Home</span>
-  </a>
-  <a class="tab" href="#/inventory" data-tab="inventory">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v3H4zM5 11h14v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1zm4 3h6v2H9z"/></svg>
-    <span>Gear</span>
-  </a>
-  <a class="tab tab-hero" href="#/catering" data-tab="catering">
-    <span class="tab-hero-dot">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h12v4H3zM15 11h3.2l2.8 3.4V17h-6zM5.5 20a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zm12 0a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4zM6 10a3 3 0 0 1 6 0z"/></svg>
-    </span>
-    <span>Event</span>
-  </a>
-  <a class="tab" href="#/history" data-tab="history">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.5 12h2.2A6.8 6.8 0 1 0 12 5.2V8L7.5 4.6 12 1.2zM11 8h2v4.6l3.2 1.9-1 1.7L11 13.7z"/></svg>
-    <span>History</span>
-  </a>
-  <a class="tab" href="#/settings" data-tab="settings">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.6A3.4 3.4 0 1 0 12 15.4 3.4 3.4 0 0 0 12 8.6zm8.4 4.9.1-1.5-.1-1.5 1.8-1.4-1.8-3.1-2.2.7a7.6 7.6 0 0 0-2.6-1.5L15.2 2H8.8l-.4 2.2a7.6 7.6 0 0 0-2.6 1.5l-2.2-.7L1.8 8.1 3.6 9.5l-.1 1.5.1 1.5-1.8 1.4 1.8 3.1 2.2-.7a7.6 7.6 0 0 0 2.6 1.5l.4 2.2h6.4l.4-2.2a7.6 7.6 0 0 0 2.6-1.5l2.2.7 1.8-3.1z"/></svg>
-    <span>Setup</span>
-  </a>
-</nav>
-
-<div id="scrim" hidden></div>
-<section id="sheet" hidden aria-modal="true" role="dialog">
-  <div class="sheet-grab" data-act="sheet-close" aria-hidden="true"></div>
-  <header class="sheet-head"><h2 id="sheet-title"></h2>
-    <button type="button" class="sheet-x" data-act="sheet-close" aria-label="Close">&times;</button>
+  <!-- Top Navigation Header -->
+  <header id="topbar">
+    <span id="topbar-title">Loreto's Kitchen</span>
   </header>
-  <div id="sheet-body"></div>
-</section>
 
-<div id="toast" aria-live="polite"></div>
+  <!-- Dynamic Scrollable Viewport Area -->
+  <main id="view"></main>
 
-<script src="js/db.js"></script>
-<script src="js/image.js"></script>
-<script src="js/store.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/views/dashboard.js"></script>
-<script src="js/views/inventory.js"></script>
-<script src="js/views/catering.js"></script>
-<script src="js/views/history.js"></script>
-<script src="js/views/settings.js"></script>
-<script src="js/app.js"></script>
+  <!-- Fixed Bottom Tab Bar with Raised Hero Circle -->
+  <nav id="tabbar">
+    <a href="#/dashboard" class="tab" data-tab="dashboard">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Home</span>
+    </a>
+    <a href="#/inventory" class="tab" data-tab="inventory">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+      <span>Shelf</span>
+    </a>
+    <a href="#/catering" class="tab tab-hero" data-tab="catering">
+      <div class="tab-hero-bubble">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <span>Catering</span>
+    </a>
+    <a href="#/history" class="tab" data-tab="history">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>History</span>
+    </a>
+    <a href="#/settings" class="tab" data-tab="settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      </svg>
+      <span>Settings</span>
+    </a>
+  </nav>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').catch(function () {});
+      });
+    }
+  </script>
+
+  <!-- Core Scripts in Dependency Order -->
+  <script src="js/db.js"></script>
+  <script src="js/image.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/inventory.js"></script>
+  <script src="js/views/catering.js"></script>
+  <script src="js/views/history.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
