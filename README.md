@@ -146,3 +146,33 @@ oldest years from History.
 Every colour is a custom property at the top of `css/app.css`. The tape and
 stamp chip styles are `.tag` and `.tag-stamp` — that's the one loud element
 in the design, everything else stays quiet on purpose.
+
+```
+loretos-catering-tracker
+├─ css
+│  └─ app.css
+├─ icons
+│  ├─ icon-180.png
+│  ├─ icon-192.png
+│  ├─ icon-512-maskable.png
+│  └─ icon-512.png
+├─ index.html
+├─ js
+│  ├─ app.js
+│  ├─ db.js
+│  ├─ image.js
+│  ├─ store.js
+│  ├─ ui.js
+│  └─ views
+│     ├─ catering.js
+│     ├─ dashboard.js
+│     ├─ history.js
+│     ├─ inventory.js
+│     └─ settings.js
+├─ manifest.webmanifest
+├─ README.md
+├─ sw.js
+└─ tools
+   └─ compress-images.mjs
+
+```
