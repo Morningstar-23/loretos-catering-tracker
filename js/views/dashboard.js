@@ -1,9 +1,10 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Dashboard (js/views/dashboard.js)
    - Real Vector SVG Recovery Trend Line/Bar Chart (Zero Cut-Offs)
-   - Stock Health Split Widget with Direct Shelf Filter Shortcuts
+   - Redesigned Inventory Stock Health Widget with Dedicated Full-Width Action
    - Live Active Booking Card with Recovery Progress
    - Harmonized event history wording and clean calendar iconography
+   - iPhone 5s & iOS 12 Safari optimized (no flex gap)
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -78,11 +79,11 @@ App.Views.dashboard = (function () {
       activeCardHtml =
         '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
           '<div class="row row-between">' +
-            '<div>' +
+            '<div class="grow mr8">' +
               '<h3 style="font-size:15px;font-weight:700;color:var(--timber-ink)">No active catering event</h3>' +
               '<p class="muted mt4" style="font-size:12px">All equipment is currently home in inventory.</p>' +
             '</div>' +
-            '<button type="button" class="btn btn-primary btn-sm" data-act="go-catering" style="width:auto;padding:0 12px">' +
+            '<button type="button" class="btn btn-primary btn-sm" data-act="go-catering" style="width:auto;padding:0 12px;flex-shrink:0">' +
               U.icon('plus', 'mr4') + ' New event' +
             '</button>' +
           '</div>' +
@@ -155,23 +156,35 @@ App.Views.dashboard = (function () {
         '</div>';
     }
 
-    // Inventory Health Bar Widget
+    // Health Status Badge in Header
+    var healthTag = emptyCount > 0
+      ? '<span class="tag tag-red" style="font-size:9.5px">' + emptyCount + ' Out</span>'
+      : (lowCount > 0
+        ? '<span class="tag tag-orange" style="font-size:9.5px">' + lowCount + ' Low</span>'
+        : '<span class="tag tag-green" style="font-size:9.5px">Healthy</span>');
+
+    // Redesigned Inventory Health Card with Bottom Action
     var healthBarHtml =
       '<div class="card mb12">' +
-        '<div class="row row-between mb4">' +
-          '<strong style="font-size:12px;color:var(--timber-ink)">' + U.icon('plate', 'mr4') + ' Inventory Stock Health</strong>' +
-          '<button type="button" class="muted" data-act="go-inventory" style="font-size:11px;color:var(--inasal-orange);font-weight:600">View shelf &rarr;</button>' +
+        '<div class="row row-between mb8">' +
+          '<strong style="font-size:13px;color:var(--timber-ink);display:flex;align-items:center">' +
+            U.icon('plate', 'mr6') + ' Inventory Stock Health' +
+          '</strong>' +
+          healthTag +
         '</div>' +
-        '<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sand-soft);margin:6px 0">' +
+        '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--sand-soft);margin:6px 0">' +
           '<div style="width:' + pctInStock + '%;background:var(--foliage)" title="In Stock"></div>' +
           '<div style="width:' + pctLow + '%;background:var(--inasal-orange)" title="Low Stock"></div>' +
           '<div style="width:' + pctEmpty + '%;background:var(--alert)" title="Out of Stock"></div>' +
         '</div>' +
-        '<div class="row row-between mt4" style="font-size:11px">' +
-          '<span style="color:var(--foliage);font-weight:600">' + inStockCount + ' In Stock</span>' +
-          '<span style="color:var(--inasal-orange);font-weight:600">' + lowCount + ' Low</span>' +
-          '<span style="color:var(--alert);font-weight:600">' + emptyCount + ' Out</span>' +
+        '<div class="row row-between mt4 mb12" style="font-size:11px">' +
+          '<span style="color:var(--foliage);font-weight:700">' + inStockCount + ' In Stock</span>' +
+          '<span style="color:var(--inasal-orange);font-weight:700">' + lowCount + ' Low</span>' +
+          '<span style="color:var(--alert);font-weight:700">' + emptyCount + ' Out</span>' +
         '</div>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="go-inventory" style="min-height:36px;font-size:12px;font-weight:700;color:var(--inasal-orange);border-color:var(--line);background:var(--sand-soft);box-shadow:none">' +
+          'View Shelf Inventory &rarr;' +
+        '</button>' +
       '</div>';
 
     // Recent Completed Events List
@@ -181,7 +194,9 @@ App.Views.dashboard = (function () {
       recentGigsHtml =
         '<div class="row row-between mb8 mt16">' +
           '<h2 class="section-title" style="margin:0">' + U.icon('history') + ' Recent Completed Events</h2>' +
-          '<button type="button" class="muted" data-act="go-history" style="font-size:12px;font-weight:600;color:var(--inasal-orange)">All history &rarr;</button>' +
+          '<button type="button" class="muted" data-act="go-history" style="font-size:12px;font-weight:600;color:var(--inasal-orange);background:none;border:none;cursor:pointer;padding:0">' +
+            'All history &rarr;' +
+          '</button>' +
         '</div>' +
         '<div class="list mb12">' +
           recent.map(function (evItem) {
@@ -196,8 +211,8 @@ App.Views.dashboard = (function () {
                 '<span class="item-sub truncate">' +
                   U.esc(evItem.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(evItem.date)) +
                 '</span>' +
-                '<span class="row mt4" style="gap:4px">' +
-                  '<span class="tag ' + (isPerfect ? 'tag-green' : 'tag-orange') + '" style="font-size:9.5px">' + evTally.pct + '% recovered</span>' +
+                '<span class="row mt4" style="margin-right:4px">' +
+                  '<span class="tag ' + (isPerfect ? 'tag-green' : 'tag-orange') + '" style="font-size:9.5px;margin-right:4px">' + evTally.pct + '% recovered</span>' +
                   (evTally.consumed > 0 ? '<span class="tag tag-yellow" style="font-size:9.5px">' + evTally.consumed + ' used</span>' : '') +
                 '</span>' +
               '</span>' +
@@ -207,9 +222,10 @@ App.Views.dashboard = (function () {
         '</div>';
     }
 
+    // Quick Shortcuts Bar (using mr8 instead of flex gap for iOS 12 compatibility)
     var quickBar =
-      '<div class="row row-between mb12 mt8" style="gap:8px">' +
-        '<button type="button" class="btn btn-ghost grow btn-sm" data-act="go-catering" style="min-height:38px;font-size:12px">' +
+      '<div class="row row-between mb12 mt8">' +
+        '<button type="button" class="btn btn-ghost grow btn-sm mr8" data-act="go-catering" style="min-height:38px;font-size:12px">' +
           U.icon('truck', 'mr4') + ' Catering Van' +
         '</button>' +
         '<button type="button" class="btn btn-ghost grow btn-sm" data-act="go-inventory" style="min-height:38px;font-size:12px">' +

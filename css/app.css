@@ -1520,3 +1520,136 @@ body {
 }
 
 .hidden-file { display: none; }
+
+/* ==========================================================================
+   Catering View Enhancements (Event Status Pill, Thumbs & Tab Transitions)
+   ========================================================================== */
+
+/* High-end Glowing Status Pill on Banner */
+.event-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px 3px 7px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(22, 18, 16, 0.42);
+  color: #FAF6F0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.event-status-pill .status-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  margin-right: 5px;
+  background: #5EE699;
+  box-shadow: 0 0 6px rgba(94, 230, 153, 0.9);
+}
+
+.event-status-pill.staging .status-dot {
+  background: #FFA494;
+  box-shadow: 0 0 6px rgba(255, 164, 148, 0.9);
+}
+
+/* Compact Thumbnail for Catering Rows (fits 320px screen) */
+.pack-thumb {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 8px;
+  margin-right: 9px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--line);
+  background-color: var(--sand-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--timber-soft);
+}
+.pack-thumb .icon {
+  width: 17px;
+  height: 17px;
+}
+
+/* Tab Pane Transition Animation */
+.tab-pane-enter {
+  animation: tabPaneRise 0.22s var(--ease-out);
+}
+
+@keyframes tabPaneRise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   Fluid Sliding Glider for Segmented Tabs (iPhone 5s / iOS 12 60fps)
+   ========================================================================== */
+
+.seg-animated {
+  position: relative;
+  overflow: hidden;
+}
+
+.seg-glider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  background: var(--sand-card);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.1), 0 0 0 1px rgba(33, 29, 26, 0.03);
+  z-index: 1;
+  pointer-events: none;
+  /* Fluid liquid spring transition */
+  transition: transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
+              width 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
+  will-change: transform, width;
+}
+
+/* Ensure buttons sit above the moving glider and have transparent backgrounds */
+.seg-animated button {
+  position: relative;
+  z-index: 2;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: color 0.18s ease;
+}
+
+.seg-animated button.on {
+  color: var(--inasal-orange) !important;
+  font-weight: 700;
+}
+
+/* Meta tags wrapping inside pack rows to prevent text collisions on 320px screens */
+.pack-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 3px;
+}
+.pack-tags-wrap > * {
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+/* Clickable item title block with tactile active feedback */
+.pack-item-clickable {
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 0.15s ease;
+}
+.pack-item-clickable:active {
+  opacity: 0.65;
+}

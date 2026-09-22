@@ -1,11 +1,11 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Catering (js/views/catering.js)
    - Optimized for iPhone 5s (320px screen width) & iOS 12 Mobile Safari
-   - Plain text manifest export (SMS / WhatsApp / Notepad)
-   - Wording standardized to "in inventory" and "event history"
-   - Pack-down separates Reusable Equipment from Consumables
-   - Finish Event sheet separates consumable deductions from equipment write-offs
-   - Unified single label presentation style
+   - Animations ONLY on tab switch (no flashing on +/- stepper taps)
+   - Full Item Detail Pop-up Modal on item tap (zero truncation)
+   - Non-overlapping multi-line tags & status counts for consumables
+   - Clean, compact "Export to text" button
+   - Real-time crew auto-update
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -13,16 +13,46 @@ App.Views = App.Views || {};
 App.Views.catering = (function () {
   var U = App.UI, S = App.Store;
   var tab = 'load';
+  var lastRenderedTab = null;
   var onlyShort = false, pickQ = '', pickCat = '';
   var editingPreset = null;
+  var lastGliderState = null;
+
+  function updateGlider(root) {
+    var container = (root || document).querySelector('.seg-animated');
+    if (!container) return;
+    var glider = container.querySelector('.seg-glider');
+    var activeBtn = container.querySelector('button.on');
+    if (!glider || !activeBtn) return;
+
+    var targetX = activeBtn.offsetLeft;
+    var targetW = activeBtn.offsetWidth;
+
+    if (lastGliderState && (lastGliderState.x !== targetX || lastGliderState.w !== targetW)) {
+      glider.style.transition = 'none';
+      glider.style.transform = 'translate3d(' + lastGliderState.x + 'px, 0, 0)';
+      glider.style.width = lastGliderState.w + 'px';
+      void glider.offsetWidth;
+
+      glider.style.transition = 'transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.28s cubic-bezier(0.34, 1.45, 0.64, 1)';
+      glider.style.transform = 'translate3d(' + targetX + 'px, 0, 0)';
+      glider.style.width = targetW + 'px';
+    } else {
+      glider.style.transition = 'none';
+      glider.style.transform = 'translate3d(' + targetX + 'px, 0, 0)';
+      glider.style.width = targetW + 'px';
+    }
+
+    lastGliderState = { x: targetX, w: targetW };
+  }
 
   function startScreen() {
     var presets = S.presets();
     var last = S.history()[0];
 
-    return '<div class="banner">' +
+    return '<div class="banner mb12">' +
         '<h3>Ready for the next booking</h3>' +
-        '<p class="muted mt8">Load gear from a kit preset, or build the van load piece-by-piece from inventory.</p>' +
+        '<p class="muted mt8" style="color:rgba(250,246,240,0.85)">Load gear from a kit preset, or build the van load piece-by-piece from inventory.</p>' +
         '<button type="button" class="btn btn-primary mt12" data-act="new-blank">' +
           U.icon('plus', 'mr4') + ' Start a blank event' +
         '</button>' +
@@ -38,10 +68,10 @@ App.Views.catering = (function () {
       '</div>' +
 
       (presets.length
-        ? '<div class="list">' + presets.map(presetCard).join('') + '</div>'
+        ? '<div class="list mb12">' + presets.map(presetCard).join('') + '</div>'
         : U.empty('layers', 'No kit presets yet', 'Create your first standard kit preset to load vans in seconds.')) +
 
-      (last ? '<h2 class="section-title">' + U.icon('history') + ' Last event out</h2>' +
+      (last ? '<h2 class="section-title mt16">' + U.icon('history') + ' Last event out</h2>' +
         '<div class="card">' +
           '<div class="row row-between">' +
             '<span class="item-name truncate">' + U.esc(last.name) + '</span>' +
@@ -57,7 +87,7 @@ App.Views.catering = (function () {
 
     return '<button type="button" class="item" data-act="inspect-preset" data-id="' + p.id + '">' +
       '<span class="thumb">' + U.icon('layers') + '</span>' +
-      '<span class="grow truncate">' +
+      '<span class="grow truncate mr8">' +
         '<span class="item-name truncate">' + U.esc(p.name) + '</span>' +
         '<span class="item-sub truncate">' +
           p.lines.length + ' kinds &middot; ' + (avail ? avail.totalNeeded : 0) + ' pieces' +
@@ -88,53 +118,62 @@ App.Views.catering = (function () {
         (t.consumed > 0 ? ' &middot; ' + t.consumed + ' supplies used' : '');
     }
 
-    return '<div class="banner">' +
-      '<div class="row row-between">' +
+    return '<div class="banner mb12">' +
+      '<div class="row row-between" style="align-items:flex-start">' +
         '<div class="grow mr8">' +
-          '<span class="section-badge" style="background:rgba(250,246,240,0.2);color:#FFFFFF;margin-left:0;margin-bottom:4px;display:inline-block">' +
-            (staging ? 'Staging & Van Loading' : 'Out on Location') +
-          '</span>' +
-          '<h3 class="truncate">' + U.esc(ev.name) + '</h3>' +
-          '<p class="muted mt4">' + U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) + '</p>' +
+          '<div class="row mb6">' +
+            '<span class="event-status-pill ' + (staging ? 'staging' : 'live') + '">' +
+              '<span class="status-dot"></span>' +
+              (staging ? 'Staging & Van Loading' : 'Out on Location') +
+            '</span>' +
+          '</div>' +
+          '<h3 style="font-family:Iowan Old Style,Georgia,serif;font-size:17.5px;font-weight:700;line-height:1.24;word-break:break-word;letter-spacing:-0.01em">' +
+            U.esc(ev.name) +
+          '</h3>' +
+          '<p class="muted mt4" style="font-size:12px;color:rgba(250,246,240,0.85)">' +
+            U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) +
+          '</p>' +
         '</div>' +
-        '<div class="row" style="gap:4px">' +
-          '<button type="button" class="step-btn" data-act="export-manifest-text" aria-label="Export manifest" style="background:transparent;border-color:rgba(250,246,240,.35);color:#FAF6F0">' +
-            U.icon('layers') +
-          '</button>' +
-          '<button type="button" class="step-btn" data-act="edit-event" aria-label="Edit event details" style="background:transparent;border-color:rgba(250,246,240,.35);color:#FAF6F0">' +
+        '<div class="row" style="flex-shrink:0;margin-top:2px">' +
+          '<button type="button" class="step-btn mr4" data-act="export-manifest-text" aria-label="Export manifest" style="background:rgba(250,246,240,0.14);border:1px solid rgba(250,246,240,.3);color:#FAF6F0;border-radius:var(--r-sm);width:34px;height:34px">' +
             U.icon('edit') +
+          '</button>' +
+          '<button type="button" class="step-btn" data-act="edit-event" aria-label="Edit event details" style="background:rgba(250,246,240,0.14);border:1px solid rgba(250,246,240,.3);color:#FAF6F0;border-radius:var(--r-sm);width:34px;height:34px">' +
+            U.icon('settings') +
           '</button>' +
         '</div>' +
       '</div>' +
       (staging
         ? '<div class="row row-between mt12" style="border-top:1px solid rgba(250,246,240,0.15);padding-top:8px">' +
-            '<span style="font-size:13.5px;font-weight:600">' + t.durableOut + ' gear &middot; ' + t.consumableOut + ' supplies staged</span>' +
-            '<span class="muted" style="font-size:12px">' + crewCount + ' crew</span>' +
+            '<span style="font-size:13px;font-weight:600">' + t.durableOut + ' gear &middot; ' + t.consumableOut + ' supplies staged</span>' +
+            '<span class="muted" style="font-size:12px;color:rgba(250,246,240,0.85)">' + crewCount + ' crew</span>' +
           '</div>'
         : '<div class="mt12">' +
             '<div class="meter"><div class="meter-fill' + (t.pct === 100 ? ' full' : '') + '" id="meter" style="width:' + t.pct + '%"></div></div>' +
-            '<p class="muted mt8" id="meter-text" style="font-size:12px">' + meterSubtitle + '</p>' +
+            '<p class="muted mt8" id="meter-text" style="font-size:12px;color:rgba(250,246,240,0.88)">' + meterSubtitle + '</p>' +
           '</div>') +
     '</div>';
   }
 
   function segs(ev) {
     if (ev.status === 'staging') {
-      return '<div class="seg">' +
+      return '<div class="seg seg-animated mb12">' +
+        '<div class="seg-glider"></div>' +
         '<button type="button" data-act="tab" data-id="load" class="' + (tab === 'load' ? 'on' : '') + '">' +
-          U.icon('truck') + ' Load-out' +
+          U.icon('truck', 'mr4') + 'Load-out' +
         '</button>' +
         '<button type="button" data-act="tab" data-id="crew" class="' + (tab === 'crew' ? 'on' : '') + '">' +
-          U.icon('users') + ' Crew (' + (ev.staffIds || []).length + ')' +
+          U.icon('users', 'mr4') + 'Crew (' + (ev.staffIds || []).length + ')' +
         '</button>' +
       '</div>';
     }
 
-    return '<div class="seg">' +
+    return '<div class="seg seg-animated mb12">' +
+      '<div class="seg-glider"></div>' +
       '<button type="button" data-act="tab" data-id="back" class="' + (tab === 'back' ? 'on' : '') + '">Pack down</button>' +
       '<button type="button" data-act="tab" data-id="foreign" class="' + (tab === 'foreign' ? 'on' : '') + '">Not ours</button>' +
       '<button type="button" data-act="tab" data-id="load" class="' + (tab === 'load' ? 'on' : '') + '">Load-out</button>' +
-      '<button type="button" data-act="tab" data-id="crew" class="' + (tab === 'crew' ? 'on' : '') + '">Crew</button>' +
+      '<button type="button" data-act="tab" data-id="crew" class="' + (tab === 'crew' ? 'on' : '') + '">Crew (' + (ev.staffIds || []).length + ')</button>' +
     '</div>';
   }
 
@@ -142,8 +181,8 @@ App.Views.catering = (function () {
     var editable = ev.status === 'staging';
 
     var headerBtns = editable ? (
-      '<div class="row row-between mb12" style="gap:8px">' +
-        '<button type="button" class="btn btn-primary btn-sm grow" data-act="open-checklist">' +
+      '<div class="row row-between mb12">' +
+        '<button type="button" class="btn btn-primary btn-sm grow mr8" data-act="open-checklist">' +
           U.icon('plus', 'mr4') + ' Add items' +
         '</button>' +
         '<button type="button" class="btn btn-ghost btn-sm grow" data-act="pick-preset-load">' +
@@ -158,18 +197,26 @@ App.Views.catering = (function () {
     }
 
     var rows = ev.lines.map(function (l) {
+      var it = S.item(l.itemId);
+      var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
+      var cat = it ? S.category(it.categoryId) : null;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Loreto');
       var isConsumable = !!l.isConsumable;
 
       return '<div class="pack-row" id="row-load-' + l.itemId + '">' +
-        '<div class="row row-between">' +
-          '<div class="grow truncate mr8">' +
-            '<span class="item-name truncate">' + U.esc(l.name) + '</span>' +
-            '<span class="row mt4" style="flex-wrap:wrap;gap:4px">' +
-              U.tag(brandLabel, l.tagColor) +
-              (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
-              '<span class="muted ml4" style="font-size:11.5px">' + U.esc(l.unit) + '</span>' +
+        '<div class="row row-between" style="align-items:flex-start">' +
+          '<div class="row grow mr8 pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
+            '<span class="pack-thumb" data-photo="' + photoKey + '">' +
+              (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
             '</span>' +
+            '<div class="grow" style="min-width:0">' +
+              '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(l.name) + '</span>' +
+              '<div class="pack-tags-wrap">' +
+                U.tag(brandLabel, l.tagColor) +
+                (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+                '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
           (editable
             ? '<div class="stepper">' +
@@ -181,7 +228,7 @@ App.Views.catering = (function () {
         '</div>' +
         (editable ? '<div class="row row-between mt4">' +
           '<span></span>' +
-          '<button type="button" class="muted" style="font-size:11.5px;color:var(--alert)" data-act="remove-line" data-id="' + l.itemId + '">Remove</button>' +
+          '<button type="button" class="muted" style="font-size:11.5px;color:var(--alert);background:none;border:none;cursor:pointer" data-act="remove-line" data-id="' + l.itemId + '">Remove</button>' +
         '</div>' : '') +
       '</div>';
     }).join('');
@@ -192,10 +239,10 @@ App.Views.catering = (function () {
         ? '<button type="button" class="btn btn-primary mt12" data-act="mark-loaded">' +
             U.icon('check', 'mr4') + ' Van is loaded \u2014 Lock it in' +
           '</button>' +
-          '<button type="button" class="btn btn-ghost mt8" data-act="export-manifest-text">' +
-            U.icon('edit', 'mr4') + ' Export text manifest (Copy to SMS / Notepad)' +
+          '<button type="button" class="btn btn-ghost mt8 mb16" data-act="export-manifest-text" style="min-height:38px;font-size:12.5px">' +
+            U.icon('edit', 'mr4') + ' Export to text' +
           '</button>' +
-          '<button type="button" class="btn btn-danger mt8" data-act="cancel-event">Cancel this event</button>'
+          '<button type="button" class="btn btn-danger mt8 mb16" data-act="cancel-event">Cancel this event</button>'
         : '<p class="muted mt12" style="text-align:center;font-size:12px">Counts are locked while out at the event. Track returns in Pack Down.</p>');
   }
 
@@ -206,13 +253,16 @@ App.Views.catering = (function () {
     }).filter(Boolean);
 
     var html = staffList.map(function (m) {
+      var photoKey = m.photoId ? (m.photoId + '-t') : '';
       return '<div class="item">' +
-        '<span class="thumb">' + U.icon('user') + '</span>' +
-        '<span class="grow truncate">' +
+        '<span class="thumb staff-thumb" data-photo="' + photoKey + '">' +
+          (!photoKey ? U.icon('user') : '') +
+        '</span>' +
+        '<span class="grow truncate mr8">' +
           '<span class="item-name truncate">' + U.esc(m.name) + '</span>' +
           '<span class="item-sub truncate">' + U.esc(m.role || 'Catering Staff') + '</span>' +
         '</span>' +
-        (m.phone ? '<a class="btn btn-ghost btn-sm mr8" href="tel:' + U.esc(m.phone) + '" style="min-height:34px;padding:4px 10px;font-size:12.5px;width:auto">' +
+        (m.phone ? '<a class="btn btn-ghost btn-sm mr8" href="tel:' + U.esc(m.phone) + '" style="min-height:34px;padding:4px 10px;font-size:12px;width:auto">' +
           U.icon('phone', 'mr4') + ' Call</a>' : '') +
         (ev.status === 'staging'
           ? '<button type="button" class="step-btn" data-act="unassign-staff" data-id="' + m.id + '" aria-label="Remove crew member">' + U.icon('close') + '</button>'
@@ -223,7 +273,7 @@ App.Views.catering = (function () {
     return '<div class="card mb12">' +
         '<div class="row row-between">' +
           '<div>' +
-            '<h3 style="font-size:15px;font-weight:600">Assigned Crew (' + staffList.length + ')</h3>' +
+            '<h3 style="font-size:15px;font-weight:700">Assigned Crew (' + staffList.length + ')</h3>' +
             '<p class="muted mt4" style="font-size:11.5px">Staff working this booking.</p>' +
           '</div>' +
           '<button type="button" class="btn btn-primary btn-sm" data-act="open-staff-picker" style="width:auto;padding:0 12px">' +
@@ -231,7 +281,7 @@ App.Views.catering = (function () {
           '</button>' +
         '</div>' +
       '</div>' +
-      (staffList.length ? '<div class="list">' + html + '</div>'
+      (staffList.length ? '<div class="list mb16">' + html + '</div>'
         : U.empty('users', 'No crew assigned', 'Assign staff from your directory to track who is working this job.'));
   }
 
@@ -247,25 +297,33 @@ App.Views.catering = (function () {
     }
 
     function durableRow(l) {
+      var it = S.item(l.itemId);
+      var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
+      var cat = it ? S.category(it.categoryId) : null;
       var short = l.out - l.back;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Loreto');
 
       return '<div class="pack-row ' + (short === 0 ? 'done' : 'short') + '" id="row-' + l.itemId + '">' +
-        '<div class="row row-between">' +
-          '<div class="grow truncate mr8">' +
-            '<span class="item-name truncate">' + U.esc(l.name) + '</span>' +
-            '<div class="row mt4">' +
-              U.tag(brandLabel, l.tagColor) +
-              '<span class="muted ml8" style="font-size:11px">' + U.esc(l.unit) + '</span>' +
+        '<div class="row row-between" style="align-items:flex-start">' +
+          '<div class="row grow mr8 pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
+            '<span class="pack-thumb" data-photo="' + photoKey + '">' +
+              (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+            '</span>' +
+            '<div class="grow" style="min-width:0">' +
+              '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(l.name) + '</span>' +
+              '<div class="pack-tags-wrap">' +
+                U.tag(brandLabel, l.tagColor) +
+                '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<span class="pack-count" id="cnt-' + l.itemId + '">' +
-            (short === 0 ? '<strong style="color:var(--success)">All ' + l.out + ' back</strong>'
-                         : '<span class="pack-short">' + short + ' missing</span> of ' + l.out) +
-          '</span>' +
+          '<div class="pack-count" id="cnt-' + l.itemId + '" style="text-align:right;flex-shrink:0;margin-left:4px">' +
+            (short === 0 ? '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>'
+                         : '<span class="pack-short" style="font-size:12px">' + short + ' missing</span>') +
+          '</div>' +
         '</div>' +
         '<div class="row row-between mt8">' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:36px;padding:4px 12px;font-size:12.5px;color:var(--foliage);font-weight:600">' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:36px;padding:4px 12px;font-size:12px;color:var(--foliage);font-weight:700">' +
             U.icon('check', 'mr4') + ' All back' +
           '</button>' +
           '<div class="stepper">' +
@@ -278,36 +336,46 @@ App.Views.catering = (function () {
     }
 
     function consumableRow(l) {
+      var it = S.item(l.itemId);
+      var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
+      var cat = it ? S.category(it.categoryId) : null;
       var used = l.out - l.back;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Supply');
       var statusHtml = '';
 
       if (l.back === l.out) {
-        statusHtml = '<strong style="color:var(--success);font-size:12px">Unused (All ' + l.out + ' back)</strong>';
+        statusHtml = '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>';
       } else if (l.back === 0) {
-        statusHtml = '<span style="color:var(--timber-soft);font-size:12px;font-weight:600">All ' + l.out + ' used</span>';
+        statusHtml = '<span style="color:var(--timber-soft);font-size:12px;font-weight:700">All ' + l.out + ' used</span>';
       } else {
-        statusHtml = '<span style="color:var(--timber-soft);font-size:12px"><strong>' + l.back + '</strong> back &middot; <strong>' + used + '</strong> used</span>';
+        statusHtml = '<span style="color:var(--timber-soft);font-size:11.5px"><strong>' + l.back + '</strong> back &middot; <strong>' + used + '</strong> used</span>';
       }
 
       return '<div class="pack-row done" id="row-' + l.itemId + '" style="border-left:3.5px solid var(--gold, #D49B42)">' +
-        '<div class="row row-between">' +
-          '<div class="grow truncate mr8">' +
-            '<span class="item-name truncate">' + U.esc(l.name) + '</span>' +
-            '<div class="row mt4" style="gap:4px">' +
-              U.tag(brandLabel, l.tagColor || 'yellow') +
-              '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' +
-              '<span class="muted ml4" style="font-size:11px">' + U.esc(l.unit) + '</span>' +
+        '<div class="row row-between" style="align-items:flex-start">' +
+          '<div class="row grow mr8 pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
+            '<span class="pack-thumb" data-photo="' + photoKey + '">' +
+              (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+            '</span>' +
+            '<div class="grow" style="min-width:0">' +
+              '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(l.name) + '</span>' +
+              '<div class="pack-tags-wrap">' +
+                U.tag(brandLabel, l.tagColor || 'yellow') +
+                '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' +
+                '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<span class="pack-count" id="cnt-' + l.itemId + '">' + statusHtml + '</span>' +
+          '<div class="pack-count" id="cnt-' + l.itemId + '" style="text-align:right;flex-shrink:0;margin-left:4px">' +
+            statusHtml +
+          '</div>' +
         '</div>' +
         '<div class="row row-between mt8">' +
-          '<div class="row" style="gap:6px">' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="consumable-all-used" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 8px;font-size:11.5px">' +
+          '<div class="row">' +
+            '<button type="button" class="btn btn-ghost btn-sm mr6" data-act="consumable-all-used" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px">' +
               'All used' +
             '</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 8px;font-size:11.5px;color:var(--foliage);font-weight:600">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px;color:var(--foliage);font-weight:700">' +
               'All back' +
             '</button>' +
           '</div>' +
@@ -350,8 +418,8 @@ App.Views.catering = (function () {
       '<button type="button" class="btn btn-primary mt12" data-act="close-event">' +
         U.icon('check', 'mr4') + ' Finish this event' +
       '</button>' +
-      '<button type="button" class="btn btn-ghost mt8" data-act="export-manifest-text">' +
-        U.icon('layers', 'mr4') + ' Export text manifest (Copy to SMS / Notepad)' +
+      '<button type="button" class="btn btn-ghost mt8 mb16" data-act="export-manifest-text" style="min-height:38px;font-size:12.5px">' +
+        U.icon('edit', 'mr4') + ' Export to text' +
       '</button>';
   }
 
@@ -371,10 +439,10 @@ App.Views.catering = (function () {
         '<p class="muted mt8" style="font-size:12px">Log venue plates, borrowed bowls, or guest pans before driving off so they are returned to their owners.</p>' +
       '</div>' +
       (ev.notOurs.length
-        ? '<div class="list">' + ev.notOurs.map(function (n) {
+        ? '<div class="list mb16">' + ev.notOurs.map(function (n) {
             return '<div class="item">' +
               '<span class="thumb" style="color:var(--alert)">' + U.icon('alert') + '</span>' +
-              '<span class="grow truncate">' +
+              '<span class="grow truncate mr8">' +
                 '<span class="item-name truncate">' + U.esc(n.label) + '</span>' +
                 '<span class="item-sub truncate">' + n.qty + ' pc' + (n.note ? ' &middot; ' + U.esc(n.note) : '') + '</span>' +
               '</span>' +
@@ -396,10 +464,82 @@ App.Views.catering = (function () {
              : (tab === 'crew')    ? crewTab(ev)
              : loadTab(ev);
 
-    return head(ev) + segs(ev) + body;
+    var tabSwitched = (lastRenderedTab !== tab);
+    lastRenderedTab = tab;
+
+    // Animations ONLY trigger on actual tab navigation, preventing flashes on stepper clicks
+    var animClass = tabSwitched ? ' tab-pane-enter list-stagger' : '';
+
+    return head(ev) + segs(ev) + '<div class="catering-tab-pane' + animClass + '">' + body + '</div>';
   }
 
-  function mounted() {}
+  function mounted(root) {
+    U.hydrateThumbs(root || document);
+    updateGlider(root || document);
+  }
+
+  function openItemDetail(itemId) {
+    var it = S.item(itemId);
+    if (!it) return;
+    var ev = S.activeEvent();
+    var line = null;
+    if (ev && ev.lines) {
+      ev.lines.forEach(function (l) { if (l.itemId === itemId) line = l; });
+    }
+    var cat = S.category(it.categoryId);
+    var photoKey = it.photoId ? it.photoId : '';
+    var brandLabel = it.brand || it.tagLabel || 'Loreto';
+
+    var statsHtml = '';
+    if (line) {
+      statsHtml =
+        '<div class="kpi-grid mb12">' +
+          '<div class="kpi"><div class="kpi-in">' +
+            '<div class="kpi-n">' + line.out + '</div>' +
+            '<div class="kpi-l">Staged in Van</div>' +
+          '</div></div>' +
+          '<div class="kpi"><div class="kpi-in">' +
+            '<div class="kpi-n" style="color:var(--foliage)">' + line.back + '</div>' +
+            '<div class="kpi-l">Back in Hand</div>' +
+          '</div></div>' +
+        '</div>';
+    }
+
+    var html =
+      '<div style="text-align:center;margin-bottom:12px">' +
+        '<div class="staff-avatar-large" data-photo="' + photoKey + '" style="width:84px;height:84px;border-radius:18px;margin:0 auto 10px auto;border:2px solid var(--line);background-color:var(--sand-soft)">' +
+          (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+        '</div>' +
+        '<h3 style="font-family:Iowan Old Style,Georgia,serif;font-size:18px;font-weight:700;color:var(--timber-ink);word-break:break-word">' +
+          U.esc(it.name) +
+        '</h3>' +
+        '<div class="row" style="justify-content:center;margin-top:6px;flex-wrap:wrap">' +
+          U.tag(brandLabel, it.tagColor) +
+          (it.isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Consumable Supply</span>' : '') +
+          (cat ? '<span class="tag tag-white ml4" style="font-size:9.5px">' + U.esc(cat.name) + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+
+      statsHtml +
+
+      '<div class="card mb12">' +
+        '<div class="row row-between mb4">' +
+          '<span class="muted">Total Inventory Owned:</span>' +
+          '<strong>' + it.qty + ' ' + U.esc(it.unit) + '</strong>' +
+        '</div>' +
+        '<div class="row row-between mb4">' +
+          '<span class="muted">Low Stock Alert Level:</span>' +
+          '<span>' + (it.lowStockThreshold || 2) + ' ' + U.esc(it.unit) + '</span>' +
+        '</div>' +
+        (it.brand ? '<div class="row row-between mb4"><span class="muted">Brand / Stamp:</span><span>' + U.esc(it.brand) + '</span></div>' : '') +
+        (it.note ? '<div class="mt8 pt8" style="border-top:1px solid var(--line)"><span class="muted">Notes:</span><p style="margin-top:2px;font-size:12.5px">' + U.esc(it.note) + '</p></div>' : '') +
+      '</div>' +
+
+      '<button type="button" class="btn btn-primary" data-act="sheet-close">Done</button>';
+
+    var body = U.openSheet('Item Details', html, onAct);
+    U.hydrateThumbs(body);
+  }
 
   function openGearChecklist() {
     var ev = S.activeEvent();
@@ -418,17 +558,24 @@ App.Views.catering = (function () {
       var staged = 0;
       ev.lines.forEach(function (l) { if (l.itemId === i.id) staged = l.out; });
       var brandLabel = i.brand ? i.brand : (i.tagLabel || 'Loreto');
+      var photoKey = i.photoId ? (i.photoId + '-t') : '';
+      var cat = S.category(i.categoryId);
 
       return '<div class="pack-row">' +
-        '<div class="row row-between">' +
-          '<div class="grow truncate mr8">' +
-            '<span class="item-name truncate">' + U.esc(i.name) + '</span>' +
-            '<span class="item-sub truncate">' +
-              '<strong style="color:var(--foliage)">' + i.qty + ' in inventory</strong> &middot; ' + U.esc(i.unit) +
+        '<div class="row row-between" style="align-items:flex-start">' +
+          '<div class="row grow mr8 pack-item-clickable" data-act="inspect-item" data-id="' + i.id + '" style="min-width:0">' +
+            '<span class="pack-thumb" data-photo="' + photoKey + '">' +
+              (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
             '</span>' +
-            '<div class="row mt4" style="gap:4px">' +
-              U.tag(brandLabel, i.tagColor) +
-              (i.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+            '<div class="grow" style="min-width:0">' +
+              '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(i.name) + '</span>' +
+              '<span class="item-sub">' +
+                '<strong style="color:var(--foliage)">' + i.qty + ' in inventory</strong> &middot; ' + U.esc(i.unit) +
+              '</span>' +
+              '<div class="pack-tags-wrap">' +
+                U.tag(brandLabel, i.tagColor) +
+                (i.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+              '</div>' +
             '</div>' +
           '</div>' +
           '<div class="stepper">' +
@@ -450,6 +597,7 @@ App.Views.catering = (function () {
       '<button type="button" class="btn btn-primary" data-act="sheet-close">Done staging</button>';
 
     var body = U.openSheet('Gear Checklist', html, onAct);
+    U.hydrateThumbs(body);
 
     var qInput = document.getElementById('chk-q');
     if (qInput) {
@@ -470,7 +618,7 @@ App.Views.catering = (function () {
 
     var html =
       '<p class="muted mb8" style="font-size:12px">' +
-        'Copy and paste this plain text summary into Notepad, WhatsApp, or SMS to send to drivers and event staff.' +
+        'Plain text catering manifest ready to copy.' +
       '</p>' +
       '<div class="field mb12">' +
         '<textarea class="input" id="manifest-text-box" readonly style="height:220px;font-family:monospace;font-size:11px;line-height:1.4;white-space:pre;background:var(--sand-soft);border-color:var(--line-strong)">' +
@@ -592,7 +740,7 @@ App.Views.catering = (function () {
         '<div class="row row-between">' +
           '<div class="grow truncate mr8">' +
             '<span class="item-name truncate">' + U.esc(it ? it.name : 'Unknown gear') + '</span>' +
-            '<div class="row mt4" style="gap:4px">' +
+            '<div class="pack-tags-wrap">' +
               (brandLabel ? U.tag(brandLabel, it.tagColor) : '') +
               (it && it.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
             '</div>' +
@@ -605,7 +753,7 @@ App.Views.catering = (function () {
         '</div>' +
         '<div class="row row-between mt4">' +
           '<span></span>' +
-          '<button type="button" class="muted" style="font-size:11.5px;color:var(--alert)" data-act="p-remove-line" data-id="' + l.itemId + '">Remove</button>' +
+          '<button type="button" class="muted" style="font-size:11.5px;color:var(--alert);background:none;border:none;cursor:pointer" data-act="p-remove-line" data-id="' + l.itemId + '">Remove</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -616,7 +764,7 @@ App.Views.catering = (function () {
 
     var addItemSelect =
       '<div class="card mb12">' +
-        '<label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:6px">Add Gear to Kit</label>' +
+        '<label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">Add Gear to Kit</label>' +
         '<div class="row">' +
           '<div class="grow mr8">' +
             '<select class="input" id="p-add-select" style="font-size:13px">' +
@@ -627,7 +775,7 @@ App.Views.catering = (function () {
             '</select>' +
           '</div>' +
           '<button type="button" class="btn btn-ghost btn-sm" data-act="p-add-gear" style="width:auto;padding:0 14px">' +
-            U.icon('plus') + ' Add' +
+            U.icon('plus', 'mr4') + 'Add' +
           '</button>' +
         '</div>' +
       '</div>';
@@ -695,9 +843,12 @@ App.Views.catering = (function () {
 
     var rows = allStaff.map(function (m) {
       var isAssigned = assigned.indexOf(m.id) > -1;
+      var photoKey = m.photoId ? (m.photoId + '-t') : '';
       return '<button type="button" class="item" data-act="toggle-staff-assign" data-id="' + m.id + '">' +
-        '<span class="thumb">' + U.icon('user') + '</span>' +
-        '<span class="grow truncate">' +
+        '<span class="thumb staff-thumb" data-photo="' + photoKey + '">' +
+          (!photoKey ? U.icon('user') : '') +
+        '</span>' +
+        '<span class="grow truncate mr8">' +
           '<span class="item-name truncate">' + U.esc(m.name) + '</span>' +
           '<span class="item-sub truncate">' + U.esc(m.role || 'Staff') + (m.phone ? ' &middot; ' + U.esc(m.phone) : '') + '</span>' +
         '</span>' +
@@ -714,14 +865,20 @@ App.Views.catering = (function () {
       '<button type="button" class="btn btn-ghost btn-sm mb8" data-act="add-staff-from-event">' +
         U.icon('plus', 'mr4') + ' Add new staff member to directory' +
       '</button>' +
-      '<button type="button" class="btn btn-primary" data-act="sheet-close">Done</button>';
+      '<button type="button" class="btn btn-primary" data-act="done-staff-picker">Done</button>';
 
-    U.openSheet('Assign Crew to Event', html, onAct);
+    var body = U.openSheet('Assign Crew to Event', html, onAct);
+    U.hydrateThumbs(body);
   }
 
   function onAct(act, el) {
     var ev = S.activeEvent();
     var id = el ? el.getAttribute('data-id') : '';
+
+    if (act === 'inspect-item') {
+      openItemDetail(id);
+      return;
+    }
 
     if (act === 'manage-presets') { openPresetManagerSheet(); return; }
     if (act === 'new-preset') { openPresetEditor(null); return; }
@@ -742,7 +899,7 @@ App.Views.catering = (function () {
     }
     if (act === 'inspect-preset-add') { openPresetInspector(id, true); return; }
 
-    /* Plain Text Manifest Export Actions */
+    /* Clean Plain Text Export Action */
     if (act === 'export-manifest-text') {
       openTextManifest(ev);
       return;
@@ -884,7 +1041,12 @@ App.Views.catering = (function () {
       return;
     }
 
-    if (act === 'tab') { tab = id; App.rerenderQuiet(); return; }
+    if (act === 'tab') {
+      tab = id;
+      App.rerenderQuiet();
+      return;
+    }
+
     if (act === 'open-checklist') { pickQ = ''; pickCat = ''; openGearChecklist(); return; }
     if (act === 'chk-cat') { pickCat = el.getAttribute('data-id'); openGearChecklist(); return; }
 
@@ -986,12 +1148,19 @@ App.Views.catering = (function () {
       return;
     }
 
+    /* Staff Crew Assignment with Instant Auto-Update */
     if (act === 'open-staff-picker') { openStaffPicker(); return; }
     if (act === 'toggle-staff-assign') {
       var isAssigned = (ev.staffIds || []).indexOf(id) > -1;
       if (isAssigned) S.unassignStaff(ev, id);
       else S.assignStaff(ev, id);
       openStaffPicker();
+      App.rerenderQuiet();
+      return;
+    }
+    if (act === 'done-staff-picker') {
+      U.closeSheet();
+      App.rerenderQuiet();
       return;
     }
     if (act === 'unassign-staff') {
@@ -1063,7 +1232,7 @@ App.Views.catering = (function () {
         '<div class="mb12">' +
           '<h3 class="section-title" style="color:var(--alert);margin-bottom:6px">' + U.icon('alert', 'mr4') + ' Missing Equipment (' + missingDurable.length + ')</h3>' +
           '<div class="list mb8">' + missingDurable.map(function (l) {
-            return '<div class="item"><span class="grow truncate">' +
+            return '<div class="item"><span class="grow truncate mr8">' +
               '<span class="item-name truncate">' + U.esc(l.name) + '</span>' +
               '<span class="item-sub" style="color:var(--alert)">' + (l.out - l.back) + ' of ' + l.out + ' ' + U.esc(l.unit) + ' missing</span></span>' +
               U.tag(l.brand || l.tagLabel, l.tagColor) + '</div>';
@@ -1079,7 +1248,7 @@ App.Views.catering = (function () {
         '<div class="mb12">' +
           '<h3 class="section-title" style="margin-bottom:6px">' + U.icon('sparkles', 'mr4') + ' Supplies Consumed (' + usedSupplies.length + ')</h3>' +
           '<div class="list mb8">' + usedSupplies.map(function (l) {
-            return '<div class="item"><span class="grow truncate">' +
+            return '<div class="item"><span class="grow truncate mr8">' +
               '<span class="item-name truncate">' + U.esc(l.name) + '</span>' +
               '<span class="item-sub">' + (l.out - l.back) + ' of ' + l.out + ' ' + U.esc(l.unit) + ' used on site</span></span>' +
               '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span></div>';
