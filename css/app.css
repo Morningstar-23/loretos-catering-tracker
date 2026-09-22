@@ -1,7 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Stylesheet (css/app.css)
    - Depth: layered shadows instead of flat 1px borders
-   - Topbar: Left-aligned title with right header action button
+   - Topbar: Left-aligned title with right header action button & brand logo
    - Filters & Chips: warm on-brand active state & scroll-position lock
    - Animated Custom Dropdowns with spring popovers & checkmark states
    - 3D spring sort direction toggle with tactile micro-animation
@@ -10,7 +10,7 @@
    - Emphasized floating center circular hero button in navbar (Catering)
    - Staggered animations on filter/search changes (.list-stagger)
    - Dedicated Staff profile styling with photo upload
-   - iPhone 5s (320px) & iOS 12 Safari optimized
+   - iPhone 5s (320px) & iOS 12 Safari optimized (no flex gap)
    ========================================================================== */
 
 :root {
@@ -88,7 +88,10 @@ body {
   background-attachment: fixed;
 }
 
-/* Balanced Top Navigation Header: Left-Aligned Title with Right Action */
+/* ==========================================================================
+   Top Navigation Header (Brand Logo + Title + Right Action)
+   ========================================================================== */
+
 #topbar {
   position: fixed;
   top: 0;
@@ -96,8 +99,8 @@ body {
   right: 0;
   height: calc(50px + var(--sat));
   padding-top: var(--sat);
-  padding-left: 14px;
-  padding-right: 14px;
+  padding-left: 12px;
+  padding-right: 12px;
   background-color: rgba(250, 246, 240, 0.94);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   backdrop-filter: saturate(180%) blur(16px);
@@ -109,18 +112,37 @@ body {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 16px rgba(33, 29, 26, 0.045);
 }
 
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding-right: 6px;
+}
+
+.topbar-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  margin-right: 8px;
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(33, 29, 26, 0.12);
+  border: 1px solid var(--line);
+  background-color: #FFFFFF;
+}
+
 #topbar-title {
   font-family: "Iowan Old Style", "Apple Garamond", "Baskerville", Georgia, serif;
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--inasal-orange);
   letter-spacing: -0.015em;
   text-align: left;
-  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 8px;
 }
 
 .topbar-right {
@@ -1069,7 +1091,7 @@ body {
 .btn-reset-filters {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  margin-right: 4px;
   background: var(--sand-soft);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-pill);
@@ -1086,6 +1108,7 @@ body {
   width: 11px;
   height: 11px;
   stroke-width: 2.2;
+  margin-right: 4px;
 }
 .btn-reset-filters:active {
   background: var(--inasal-soft);
@@ -1124,9 +1147,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   touch-action: manipulation;
   transition: all 0.16s ease;
+}
+.pagination-btn .icon {
+  width: 13px;
+  height: 13px;
+  margin: 0 3px;
 }
 .pagination-btn:not([disabled]):active {
   background: var(--sand-soft);
@@ -1153,13 +1180,13 @@ body {
   align-items: center;
   justify-content: center;
   margin-top: 10px;
-  gap: 8px;
 }
 
 .pagination-size-label {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--timber-soft);
+  margin-right: 8px;
 }
 
 .pagination-size-pills {
@@ -1386,38 +1413,110 @@ body {
   transform: translateX(-50%) translateY(0) scale(1);
 }
 
+/* ==========================================================================
+   Animated Brand Splash Screen
+   ========================================================================== */
+
 #splash {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
-  background: var(--pandan-cream);
+  background-color: var(--pandan-cream);
   background-image:
-    radial-gradient(560px 320px at 100% -8%, rgba(200, 82, 26, 0.06), transparent 60%),
-    radial-gradient(480px 300px at -10% 18%, rgba(36, 90, 62, 0.05), transparent 55%);
+    radial-gradient(560px 320px at 100% -8%, rgba(200, 82, 26, 0.08), transparent 60%),
+    radial-gradient(480px 300px at -10% 18%, rgba(36, 90, 62, 0.06), transparent 55%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 999;
-  transition: opacity 0.4s ease;
+  transition: opacity 0.38s ease, transform 0.38s ease;
 }
+
 #splash.gone {
   opacity: 0;
+  transform: scale(1.03);
   pointer-events: none;
 }
+
+.splash-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.splash-logo-ring {
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  background: #FFFFFF;
+  padding: 4px;
+  box-shadow: 0 10px 24px rgba(200, 82, 26, 0.18), 0 2px 6px rgba(33, 29, 26, 0.08);
+  border: 1px solid var(--line);
+  margin-bottom: 12px;
+  animation: splashPulse 2.2s ease-in-out infinite alternate;
+}
+
+.splash-logo {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  object-fit: cover;
+  display: block;
+}
+
 .splash-title {
   font-family: "Iowan Old Style", Georgia, serif;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--inasal-orange);
-  animation: splashRise 0.5s var(--ease-out) 0.08s backwards;
+  letter-spacing: -0.015em;
+  margin-bottom: 4px;
+  animation: splashRise 0.45s var(--ease-out) backwards;
 }
-#splash > div:first-child {
-  animation: splashRise 0.5s var(--ease-out) backwards;
+
+.splash-subtitle {
+  color: var(--timber-soft);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin-bottom: 18px;
+  animation: splashRise 0.45s var(--ease-out) 0.06s backwards;
 }
+
+.splash-bar {
+  width: 108px;
+  height: 4px;
+  background: var(--sand-soft);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(33, 29, 26, 0.1);
+}
+
+.splash-bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--inasal-orange), var(--inasal-dark));
+  border-radius: var(--r-pill);
+  transform-origin: left;
+  animation: splashProgress 1.4s var(--ease-spring) infinite;
+}
+
+@keyframes splashPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
 @keyframes splashRise {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splashProgress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
 }
 
 .hidden-file { display: none; }

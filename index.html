@@ -13,12 +13,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Loreto's">
   <meta name="format-detection" content="telephone=no">
-  <meta name="theme-color" content="#FAF7F2">
+  <meta name="theme-color" content="#FAF6F0">
   
-  <!-- Manifest & Icons -->
+  <!-- Manifest & Standard Icons -->
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  
+  <!-- Apple Touch Home Screen Icons (iOS 12 / iPhone 5s) -->
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+  
+  <!-- Native iOS Startup Splash Image for iPhone 5s (640x1136 Retina @2x, 320x568 pt) -->
+  <link rel="apple-touch-startup-image"
+        media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+        href="icons/apple-splash-640x1136.png">
   
   <!-- Primary Application Styles -->
   <link rel="stylesheet" href="css/app.css">
@@ -27,18 +35,24 @@
 
   <!-- Splash Screen (Fades out automatically in app.js) -->
   <div id="splash">
-    <div style="color:var(--terracotta);margin-bottom:8px">
-      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-      </svg>
+    <div class="splash-brand">
+      <div class="splash-logo-ring">
+        <img src="icons/icon-192.png" alt="Loreto's Kitchen Logo" class="splash-logo">
+      </div>
+      <h1 class="splash-title">Loreto's Kitchen</h1>
+      <p class="splash-subtitle">Catering Gear & Van Tracker</p>
+      <div class="splash-bar">
+        <div class="splash-bar-fill"></div>
+      </div>
     </div>
-    <h1 class="splash-title">Loreto's Kitchen</h1>
-    <p style="color:var(--ink-soft);font-size:12px;margin-top:4px">Catering Gear & Van Tracker</p>
   </div>
 
-  <!-- Top Navigation Header (Left-aligned title with right action slot) -->
+  <!-- Top Navigation Header with Brand Logo -->
   <header id="topbar">
-    <span id="topbar-title">Loreto's Kitchen</span>
+    <div class="topbar-brand">
+      <img src="icons/icon-180.png" alt="Loreto's" class="topbar-logo">
+      <span id="topbar-title">Loreto's Kitchen</span>
+    </div>
     <div class="topbar-right" id="topbar-right"></div>
   </header>
 
@@ -67,7 +81,7 @@
     </a>
     <a href="#/settings" class="tab" data-tab="settings">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
+        <circle cx="12" cy="3"/>
         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
       </svg>
       <span>Settings</span>
