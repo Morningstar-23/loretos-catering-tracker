@@ -1,9 +1,11 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Inventory (js/views/inventory.js)
-   - Pagination support (12 items per page) for high-volume inventory
-   - Dynamic staggered item entrance on filter, search, & page switches
-   - Animated dropdown filters & 3D spring sort direction flip
-   - Visual category icon picker & single unified label badges
+   - Left-aligned header Add button (completely unblocks pagination)
+   - Category scroll lock: exact scrollLeft position preserved without moving
+   - In-place DOM dropdown toggles: opening menus does NOT re-animate items list
+   - Dynamic "Reset filters" button that appears whenever filters are used
+   - Spring 3D animated sort direction toggle (Ascending / Descending)
+   - Pagination with Page Size selector (5, 10, 15, 25 items per page)
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -12,7 +14,10 @@ App.Views.inventory = (function () {
   var U = App.UI, S = App.Store;
   var q = '', cat = '', sortField = 'alpha', sortDir = 'asc', stockFilter = 'all';
   var page = 1;
-  var PAGE_SIZE = 12;
+  var pageSize = 10;
+  var totalPages = 1;
+  var chipsScrollLeft = 0;
+  var docListenerAttached = false;
 
   var pendingPhoto = null, editingId = null;
   var selectedTagColor = 'orange', selectedCategoryId = '';
@@ -21,12 +26,96 @@ App.Views.inventory = (function () {
 
   var AVAILABLE_CAT_ICONS = ['plate', 'flame', 'utensils', 'coffee', 'truck', 'chair', 'sparkles', 'package', 'grid'];
 
+  var STOCK_OPTIONS = [
+    { id: 'all',     label: 'All stock' },
+    { id: 'low',     label: 'Low stock' },
+    { id: 'empty',   label: 'Out of stock' },
+    { id: 'instock', label: 'In stock' }
+  ];
+
+  var SORT_OPTIONS = [
+    { id: 'alpha', label: 'Name' },
+    { id: 'mod',   label: 'Last modified' },
+    { id: 'date',  label: 'Date added' },
+    { id: 'qty',   label: 'Stock count' }
+  ];
+
   function ensureOthersCategory() {
     var cats = S.categories();
     var hasOthers = cats.some(function (c) { return c.name.toLowerCase() === 'others'; });
     if (!hasOthers && cats.length > 0) {
       S.saveCategory({ name: 'Others', icon: 'grid' });
     }
+  }
+
+  function topbarRight() {
+    return '<button type="button" class="topbar-btn" data-act="add-item" aria-label="Add new gear">' +
+      U.icon('plus') + '<span>Add</span>' +
+    '</button>';
+  }
+
+  function toggleDropdown(targetType, triggerEl) {
+    var allMenus = document.querySelectorAll('.c-dropdown-menu');
+    var allBtns = document.querySelectorAll('.c-dropdown-btn');
+    var allChevrons = document.querySelectorAll('.c-dropdown-chevron');
+    var allDropdowns = document.querySelectorAll('.c-dropdown');
+
+    var menu = document.getElementById('menu-' + targetType);
+    var btn = triggerEl ? triggerEl.closest('.c-dropdown-btn') : null;
+    var chevron = btn ? btn.querySelector('.c-dropdown-chevron') : null;
+    var parentDd = btn ? btn.closest('.c-dropdown') : null;
+
+    var isCurrentlyOpen = menu && menu.classList.contains('show');
+
+    // Close all open dropdowns
+    for (var i = 0; i < allMenus.length; i++) allMenus[i].classList.remove('show');
+    for (var j = 0; j < allBtns.length; j++) {
+      allBtns[j].classList.remove('active');
+      allBtns[j].setAttribute('aria-expanded', 'false');
+    }
+    for (var k = 0; k < allChevrons.length; k++) allChevrons[k].classList.remove('open');
+    for (var m = 0; m < allDropdowns.length; m++) allDropdowns[m].style.zIndex = '';
+
+    // If it wasn't open, open it cleanly without touching the rest of the DOM
+    if (!isCurrentlyOpen && menu && btn) {
+      if (parentDd) parentDd.style.zIndex = '70';
+      menu.classList.add('show');
+      btn.classList.add('active');
+      btn.setAttribute('aria-expanded', 'true');
+      if (chevron) chevron.classList.add('open');
+    }
+  }
+
+  function closeAllDropdowns() {
+    var allMenus = document.querySelectorAll('.c-dropdown-menu');
+    var allBtns = document.querySelectorAll('.c-dropdown-btn');
+    var allChevrons = document.querySelectorAll('.c-dropdown-chevron');
+    var allDropdowns = document.querySelectorAll('.c-dropdown');
+    for (var i = 0; i < allMenus.length; i++) allMenus[i].classList.remove('show');
+    for (var j = 0; j < allBtns.length; j++) {
+      allBtns[j].classList.remove('active');
+      allBtns[j].setAttribute('aria-expanded', 'false');
+    }
+    for (var k = 0; k < allChevrons.length; k++) allChevrons[k].classList.remove('open');
+    for (var m = 0; m < allDropdowns.length; m++) allDropdowns[m].style.zIndex = '';
+  }
+
+  function renderCustomDropdown(type, label, options, selectedVal) {
+    return '<div class="c-dropdown" id="dd-' + type + '">' +
+      '<button type="button" class="c-dropdown-btn" data-act="toggle-dd" data-dd="' + type + '" aria-haspopup="listbox" aria-expanded="false">' +
+        '<span class="c-dropdown-label truncate">' + U.esc(label) + '</span>' +
+        U.icon('chevronDown', 'c-dropdown-chevron') +
+      '</button>' +
+      '<div class="c-dropdown-menu" id="menu-' + type + '" role="listbox">' +
+        options.map(function (opt) {
+          var isSel = (opt.id === selectedVal);
+          return '<button type="button" class="c-dropdown-item' + (isSel ? ' on' : '') + '" data-act="pick-dd-option" data-dd="' + type + '" data-val="' + opt.id + '">' +
+            '<span>' + U.esc(opt.label) + '</span>' +
+            (isSel ? U.icon('check', 'check-icon') : '') +
+          '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>';
   }
 
   function render() {
@@ -38,12 +127,12 @@ App.Views.inventory = (function () {
     var list = S.searchItems(q, cat, sortBy, stockFilter);
 
     // Pagination calculations
-    var totalPages = Math.ceil(list.length / PAGE_SIZE) || 1;
+    totalPages = Math.ceil(list.length / pageSize) || 1;
     if (page > totalPages) page = totalPages;
     if (page < 1) page = 1;
 
-    var startIdx = (page - 1) * PAGE_SIZE;
-    var endIdx = Math.min(startIdx + PAGE_SIZE, list.length);
+    var startIdx = (page - 1) * pageSize;
+    var endIdx = Math.min(startIdx + pageSize, list.length);
     var paginatedItems = list.slice(startIdx, endIdx);
 
     var catChips = '<button type="button" class="chip' + (cat ? '' : ' on') + '" data-act="cat" data-id="">All</button>' +
@@ -53,33 +142,36 @@ App.Views.inventory = (function () {
       }).join('') +
       '<button type="button" class="chip" data-act="manage-cats">' + U.icon('settings') + ' Categories</button>';
 
-    var stockOptions = [
-      { id: 'all',     label: 'All stock' },
-      { id: 'low',     label: 'Low stock' },
-      { id: 'empty',   label: 'Out of stock' },
-      { id: 'instock', label: 'In stock' }
-    ].map(function (o) {
-      return '<option value="' + o.id + '"' + (stockFilter === o.id ? ' selected' : '') + '>' + o.label + '</option>';
-    }).join('');
+    var curStockObj = STOCK_OPTIONS.filter(function (o) { return o.id === stockFilter; })[0] || STOCK_OPTIONS[0];
+    var curSortObj = SORT_OPTIONS.filter(function (o) { return o.id === sortField; })[0] || SORT_OPTIONS[0];
 
-    var sortFieldOptions = [
-      { id: 'alpha', label: 'Name' },
-      { id: 'mod',   label: 'Last modified' },
-      { id: 'date',  label: 'Date added' },
-      { id: 'qty',   label: 'Stock count' }
-    ].map(function (o) {
-      return '<option value="' + o.id + '"' + (sortField === o.id ? ' selected' : '') + '>' + o.label + '</option>';
-    }).join('');
+    var isFiltered = !!(q || cat || stockFilter !== 'all' || sortField !== 'alpha' || sortDir !== 'asc');
 
-    var paginationHtml = (totalPages > 1) ? (
+    var resetBtnHtml = isFiltered ? (
+      '<button type="button" class="btn-reset-filters" data-act="reset-filters" aria-label="Reset all filters">' +
+        U.icon('refresh') + '<span>Reset filters</span>' +
+      '</button>'
+    ) : '';
+
+    var paginationHtml = (list.length > 0) ? (
       '<div class="pagination-bar">' +
-        '<button type="button" class="btn btn-ghost pagination-btn" data-act="inv-prev-page"' + (page === 1 ? ' disabled style="opacity:0.35;pointer-events:none"' : '') + '>' +
-          '&larr; Prev' +
-        '</button>' +
-        '<span class="pagination-info">Page ' + page + ' of ' + totalPages + '</span>' +
-        '<button type="button" class="btn btn-ghost pagination-btn" data-act="inv-next-page"' + (page === totalPages ? ' disabled style="opacity:0.35;pointer-events:none"' : '') + '>' +
-          'Next &rarr;' +
-        '</button>' +
+        '<div class="pagination-nav">' +
+          '<button type="button" class="pagination-btn" data-act="inv-prev-page"' + (page === 1 ? ' disabled' : '') + '>' +
+            '&larr; Prev' +
+          '</button>' +
+          '<span class="pagination-info">Page ' + page + ' of ' + totalPages + '</span>' +
+          '<button type="button" class="pagination-btn" data-act="inv-next-page"' + (page === totalPages ? ' disabled' : '') + '>' +
+            'Next &rarr;' +
+          '</button>' +
+        '</div>' +
+        '<div class="pagination-size-wrap">' +
+          '<span class="pagination-size-label">Show per page:</span>' +
+          '<div class="pagination-size-pills">' +
+            [5, 10, 15, 25].map(function (sz) {
+              return '<button type="button" class="size-pill' + (pageSize === sz ? ' on' : '') + '" data-act="change-page-size" data-size="' + sz + '">' + sz + '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>' +
       '</div>'
     ) : '';
 
@@ -91,9 +183,9 @@ App.Views.inventory = (function () {
       '<div class="chips filter-bar">' + catChips + '</div>' +
 
       '<div class="filter-row mb8">' +
-        '<select class="filter-select" id="inv-stock" data-act="change-stock-filter" aria-label="Filter by stock level">' + stockOptions + '</select>' +
-        '<select class="filter-select" id="inv-sort-field" data-act="change-sort-field" aria-label="Sort by">' + sortFieldOptions + '</select>' +
-        '<button type="button" class="btn btn-ghost sort-dir-btn" data-act="toggle-sort-dir"' + (dirLocked ? ' disabled' : '') +
+        renderCustomDropdown('stock', curStockObj.label, STOCK_OPTIONS, stockFilter) +
+        renderCustomDropdown('sort', curSortObj.label, SORT_OPTIONS, sortField) +
+        '<button type="button" class="btn btn-ghost sort-dir-btn' + (dirLocked ? ' disabled' : '') + '" data-act="toggle-sort-dir"' + (dirLocked ? ' disabled' : '') +
           ' aria-label="' + (sortDir === 'desc' ? 'Sorted high to low \u2014 tap to reverse' : 'Sorted low to high \u2014 tap to reverse') + '">' +
           U.icon('sortArrow', 'sort-dir-icon' + (sortDir === 'desc' && !dirLocked ? ' flipped' : '')) +
         '</button>' +
@@ -104,17 +196,16 @@ App.Views.inventory = (function () {
           (list.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + list.length + ' items' : '0 items') +
           (list.length !== S.items().length ? ' (filtered from ' + S.items().length + ')' : '') +
         '</span>' +
+        resetBtnHtml +
       '</div>' +
 
       (paginatedItems.length
         ? '<div class="list list-stagger">' + paginatedItems.map(row).join('') + '</div>' + paginationHtml
-        : U.empty('search', q || cat || stockFilter !== 'all' ? 'No items match filter' : 'Inventory is empty',
-            q || cat || stockFilter !== 'all' ? 'Try changing stock filter or tap "All".' : 'Add your first trays, burners, or tables.',
-            '<button type="button" class="btn btn-primary" data-act="add-item">' + U.icon('plus', 'mr4') + ' Add first item</button>')) +
-
-      '<button type="button" class="fab" data-act="add-item" aria-label="Add new gear">' +
-        U.icon('plus') +
-      '</button>';
+        : U.empty('search', isFiltered ? 'No items match filter' : 'Inventory is empty',
+            isFiltered ? 'Try resetting filters or tap "All".' : 'Add your first trays, burners, or tables.',
+            isFiltered
+              ? '<button type="button" class="btn btn-primary btn-sm" data-act="reset-filters">' + U.icon('refresh', 'mr4') + ' Reset filters</button>'
+              : '<button type="button" class="btn btn-primary" data-act="add-item">' + U.icon('plus', 'mr4') + ' Add first item</button>'));
   }
 
   function row(i) {
@@ -156,6 +247,25 @@ App.Views.inventory = (function () {
 
   function mounted(root) {
     U.hydrateThumbs(root);
+
+    // Keep category scroll completely locked where user left it — no forced jump to center or left
+    var chipsEl = root.querySelector('.chips.filter-bar');
+    if (chipsEl) {
+      chipsEl.scrollLeft = chipsScrollLeft;
+      chipsEl.addEventListener('scroll', function () {
+        chipsScrollLeft = chipsEl.scrollLeft;
+      }, { passive: true });
+    }
+
+    // Dismiss open custom dropdowns when clicking outside without re-rendering view
+    if (!docListenerAttached) {
+      docListenerAttached = true;
+      document.addEventListener('click', function (e) {
+        if (!e.target.closest('.c-dropdown')) {
+          closeAllDropdowns();
+        }
+      }, false);
+    }
 
     var input = document.getElementById('inv-q');
     if (input) {
@@ -561,6 +671,7 @@ App.Views.inventory = (function () {
       App.DB.set(pid + '-t', pendingPhoto.thumb);
     }
 
+    if (!editingId) page = 1;
     S.saveItem(data);
     pendingPhoto = null;
     U.closeSheet();
@@ -625,43 +736,89 @@ App.Views.inventory = (function () {
 
   function onAct(act, el) {
     if (act === 'cat') {
+      var chipsBar = document.querySelector('.chips.filter-bar');
+      if (chipsBar) {
+        chipsScrollLeft = chipsBar.scrollLeft;
+      }
       cat = el.getAttribute('data-id');
+      page = 1;
+      closeAllDropdowns();
+      App.rerenderQuiet();
+    }
+    else if (act === 'toggle-dd') {
+      var targetDd = el.getAttribute('data-dd');
+      toggleDropdown(targetDd, el);
+    }
+    else if (act === 'pick-dd-option') {
+      var ddType = el.getAttribute('data-dd');
+      var ddVal = el.getAttribute('data-val');
+      if (ddType === 'stock') {
+        stockFilter = ddVal;
+      } else if (ddType === 'sort') {
+        sortField = ddVal;
+      }
+      closeAllDropdowns();
       page = 1;
       App.rerenderQuiet();
     }
-    else if (act === 'change-stock-filter') {
-      var stockSel = document.getElementById('inv-stock');
-      if (stockSel) {
-        stockFilter = stockSel.value;
-        page = 1;
-        App.rerenderQuiet();
-      }
-    }
-    else if (act === 'change-sort-field') {
-      var fieldSel = document.getElementById('inv-sort-field');
-      if (fieldSel) {
-        sortField = fieldSel.value;
-        page = 1;
-        App.rerenderQuiet();
-      }
+    else if (act === 'reset-filters') {
+      q = '';
+      cat = '';
+      stockFilter = 'all';
+      sortField = 'alpha';
+      sortDir = 'asc';
+      page = 1;
+      chipsScrollLeft = 0;
+      closeAllDropdowns();
+      App.rerenderQuiet();
+      U.toast('Filters reset.');
     }
     else if (act === 'toggle-sort-dir') {
       if (sortField === 'mod') return;
       sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
       page = 1;
-      App.rerenderQuiet();
+      closeAllDropdowns();
+
+      var icon = el.querySelector('.sort-dir-icon') || el;
+      if (icon) {
+        icon.classList.toggle('flipped', sortDir === 'desc');
+      }
+
+      setTimeout(function () {
+        App.rerenderQuiet();
+      }, 120);
+    }
+    else if (act === 'change-page-size') {
+      var sz = parseInt(el.getAttribute('data-size'), 10);
+      if (sz && sz !== pageSize) {
+        pageSize = sz;
+        page = 1;
+        closeAllDropdowns();
+        App.rerenderQuiet();
+        var vEl = document.getElementById('view');
+        if (vEl) vEl.scrollTop = 0;
+      }
     }
     else if (act === 'inv-prev-page') {
       if (page > 1) {
         page--;
+        closeAllDropdowns();
         App.rerenderQuiet();
+        var vPrev = document.getElementById('view');
+        if (vPrev) vPrev.scrollTop = 0;
       }
     }
     else if (act === 'inv-next-page') {
-      page++;
-      App.rerenderQuiet();
+      if (page < totalPages) {
+        page++;
+        closeAllDropdowns();
+        App.rerenderQuiet();
+        var vNext = document.getElementById('view');
+        if (vNext) vNext.scrollTop = 0;
+      }
     }
     else if (act === 'open-stats') {
+      closeAllDropdowns();
       openStats(el.getAttribute('data-id'));
     }
     else if (act === 'dash-pick-photo') {
@@ -731,9 +888,11 @@ App.Views.inventory = (function () {
       }
     }
     else if (act === 'add-item') {
+      closeAllDropdowns();
       openEditor(null);
     }
     else if (act === 'edit-item') {
+      closeAllDropdowns();
       openEditor(el.getAttribute('data-id'));
     }
     else if (act === 'save-item') {
@@ -758,6 +917,7 @@ App.Views.inventory = (function () {
       });
     }
     else if (act === 'manage-cats') {
+      closeAllDropdowns();
       openCats();
     }
     else if (act === 'add-cat') {
@@ -804,6 +964,7 @@ App.Views.inventory = (function () {
     onAct: onAct,
     openEditor: openEditor,
     openStats: openStats,
-    openCats: openCats
+    openCats: openCats,
+    topbarRight: topbarRight
   };
 })();

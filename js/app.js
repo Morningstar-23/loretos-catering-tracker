@@ -1,6 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Application Controller & Router (js/app.js)
    - Optimized for iPhone 5s / iOS 12 Mobile Safari (320px viewport)
+   - Dynamic Header Actions: #topbar-right renders view controls (left-aligned title)
    - Scroll-position preservation on rerenderQuiet (no snapping to top on stepper taps)
    - Preserves native SELECT & INPUT interactions without click blocking
    - Delegated change listener for sort dropdowns and calendar pickers
@@ -8,7 +9,7 @@
 (function () {
   var ROUTES = ['dashboard', 'inventory', 'catering', 'history', 'settings'];
   var current = 'dashboard';
-  var viewEl, titleEl;
+  var viewEl, titleEl, topbarRightEl;
 
   function route() {
     var h = (location.hash || '').replace('#/', '');
@@ -60,6 +61,10 @@
 
     if (titleEl) {
       titleEl.textContent = current === 'dashboard' ? App.Store.state().settings.business : v.title;
+    }
+
+    if (topbarRightEl) {
+      topbarRightEl.innerHTML = (v.topbarRight ? v.topbarRight() : '');
     }
 
     var tabs = document.querySelectorAll('#tabbar .tab');
@@ -138,6 +143,7 @@
   function boot() {
     viewEl = document.getElementById('view');
     titleEl = document.getElementById('topbar-title');
+    topbarRightEl = document.getElementById('topbar-right');
     App.UI.boot();
     App.Store.load();
 

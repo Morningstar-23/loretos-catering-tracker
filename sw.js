@@ -1,5 +1,5 @@
 /* sw.js — cache-first app shell. Bump CACHE when you ship changes. */
-var CACHE = 'lct-v10';
+var CACHE = 'lct-v13';
 var SHELL = [
   './',
   './index.html',

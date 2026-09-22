@@ -2,7 +2,7 @@
    Loreto's Catering Tracker — UI Utilities & Component Helpers (js/ui.js)
    - Optimized for iPhone 5s (320px viewport) & iOS 12 Mobile Safari
    - True Modal Isolation (#sheet-foot completely outside #sheet-body)
-   - Added category icons: coffee, package, grid (Others)
+   - Added category icons: coffee, package, grid (Others), chevronDown, chevronLeft
    - Clean, unified single-style label badges
    ========================================================================== */
 window.App = window.App || {};
@@ -38,7 +38,9 @@ App.UI = (function () {
     camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
     calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
     history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    chevronLeft: '<polyline points="15 18 9 12 15 6"/>',
     chevronRight: '<polyline points="9 18 15 12 9 6"/>',
+    chevronDown: '<polyline points="6 9 12 15 18 9"/>',
     refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
     sortArrow: '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'
   };
