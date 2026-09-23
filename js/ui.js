@@ -4,12 +4,16 @@
    - True Modal Isolation (#sheet-foot completely outside #sheet-body)
    - Interactive Swipe-Down-To-Dismiss (Blocks browser pull-to-refresh)
    - Category icons: coffee, package, grid (Others), chevronDown, chevronLeft
+   - High-Res Image Lightbox Modal with instant tap & swipe dismiss
    ========================================================================== */
 window.App = window.App || {};
 
 App.UI = (function () {
   var sheetEl = null, sheetTitleEl = null, sheetBodyEl = null, sheetFootEl = null, backdropEl = null;
   var currentSheetHandler = null;
+
+  /* Lightbox Elements */
+  var lightboxEl = null, lightboxImgEl = null, lightboxTitleEl = null, lightboxMetaEl = null;
 
   var ICONS = {
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
@@ -42,7 +46,8 @@ App.UI = (function () {
     chevronRight: '<polyline points="9 18 15 12 9 6"/>',
     chevronDown: '<polyline points="6 9 12 15 18 9"/>',
     refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
-    sortArrow: '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'
+    sortArrow: '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+    zoom: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>'
   };
 
   function icon(name, extraClass) {
@@ -153,7 +158,6 @@ App.UI = (function () {
     sheetBodyEl.innerHTML = contentHtml;
     sheetBodyEl.scrollTop = 0;
 
-    // Reset inline drag styles before opening
     sheetEl.style.transform = '';
     sheetEl.style.transition = '';
     if (backdropEl) backdropEl.style.opacity = '';
@@ -189,6 +193,75 @@ App.UI = (function () {
     if (sheetFootEl) {
       sheetFootEl.innerHTML = '';
       sheetFootEl.style.display = 'none';
+    }
+  }
+
+  /* ==========================================================================
+     High-Resolution Item Lightbox Engine
+     ========================================================================== */
+  function openLightbox(photoKeyOrUrl, title, metaHtml) {
+    boot();
+    if (!lightboxEl) return;
+
+    var fullKey = photoKeyOrUrl || '';
+    if (fullKey.indexOf('-t') === fullKey.length - 2) {
+      fullKey = fullKey.slice(0, -2);
+    }
+
+    lightboxTitleEl.textContent = title || 'Gear Photo';
+    lightboxMetaEl.innerHTML = metaHtml || '';
+    lightboxImgEl.src = '';
+    lightboxImgEl.style.display = 'none';
+
+    var spinner = lightboxEl.querySelector('.lightbox-spinner');
+    if (spinner) spinner.style.display = 'block';
+
+    lightboxEl.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    function setImgSrc(src) {
+      if (!src) {
+        if (spinner) spinner.style.display = 'none';
+        return;
+      }
+      lightboxImgEl.onload = function () {
+        if (spinner) spinner.style.display = 'none';
+        lightboxImgEl.style.display = 'block';
+      };
+      lightboxImgEl.onerror = function () {
+        if (spinner) spinner.style.display = 'none';
+      };
+      lightboxImgEl.src = src;
+    }
+
+    if (fullKey.indexOf('data:') === 0 || fullKey.indexOf('blob:') === 0 || fullKey.indexOf('http') === 0) {
+      setImgSrc(fullKey);
+    } else if (fullKey && App.DB) {
+      App.DB.get(fullKey).then(function (res) {
+        if (res) {
+          setImgSrc(res);
+        } else {
+          App.DB.get(fullKey + '-t').then(function (tRes) {
+            setImgSrc(tRes || '');
+          });
+        }
+      }).catch(function () {
+        if (spinner) spinner.style.display = 'none';
+      });
+    } else {
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+
+  function closeLightbox() {
+    if (!lightboxEl) return;
+    lightboxEl.classList.remove('open');
+    if (lightboxImgEl) {
+      lightboxImgEl.src = '';
+      lightboxImgEl.style.display = 'none';
+    }
+    if (!sheetEl || !sheetEl.classList.contains('open')) {
+      document.body.style.overflow = '';
     }
   }
 
@@ -261,17 +334,12 @@ App.UI = (function () {
       var y = getTouchY(e);
       var deltaY = y - startY;
 
-      // Only handle downward drag
       if (deltaY > 0) {
         if (dragTarget === 'body') {
-          // If body was scrolled down, let standard scrolling happen
           if (sheetBodyEl.scrollTop > 0) return;
         }
 
-        // CRITICAL: Block native iOS pull-to-refresh & page rubber-banding
-        if (e.cancelable) {
-          e.preventDefault();
-        }
+        if (e.cancelable) e.preventDefault();
 
         isDragging = true;
         currentDeltaY = deltaY;
@@ -285,24 +353,20 @@ App.UI = (function () {
           backdropEl.style.opacity = ratio;
         }
       } else if (deltaY < 0 && dragTarget === 'handle') {
-        // Prevent stretching upward when pulling handle up
         if (e.cancelable) e.preventDefault();
         sheetEl.style.transform = 'translate3d(0, 0, 0)';
       }
-    }, { passive: false }); // Must be passive: false to allow e.preventDefault()
+    }, { passive: false });
 
-    sheetEl.addEventListener('touchend', function (e) {
+    sheetEl.addEventListener('touchend', function () {
       if (!isDragging) {
         dragTarget = null;
         return;
       }
 
       sheetEl.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)';
-      if (backdropEl) {
-        backdropEl.style.transition = 'opacity 0.24s ease';
-      }
+      if (backdropEl) backdropEl.style.transition = 'opacity 0.24s ease';
 
-      // If dragged down past 80px, dismiss the sheet
       if (currentDeltaY > 80) {
         sheetEl.style.transform = 'translate3d(0, 100%, 0)';
         if (backdropEl) backdropEl.style.opacity = '0';
@@ -311,7 +375,6 @@ App.UI = (function () {
           closeSheet();
         }, 240);
       } else {
-        // Snap back into place
         sheetEl.style.transform = 'translate3d(0, 0, 0)';
         if (backdropEl) backdropEl.style.opacity = '1';
 
@@ -329,7 +392,6 @@ App.UI = (function () {
       dragTarget = null;
     }, { passive: true });
 
-    // Block background touch-dragging on the backdrop and bottom pinned footer
     backdropEl.addEventListener('touchmove', function (e) {
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
@@ -391,6 +453,55 @@ App.UI = (function () {
       backdropEl.removeEventListener('click', closeSheet, false);
       backdropEl.addEventListener('click', closeSheet, false);
     }
+
+    /* Lightbox Modal Mounting */
+    lightboxEl = document.getElementById('lightbox');
+    if (!lightboxEl) {
+      lightboxEl = document.createElement('div');
+      lightboxEl.id = 'lightbox';
+      lightboxEl.className = 'lightbox';
+      lightboxEl.innerHTML =
+        '<div class="lightbox-backdrop" data-act="lightbox-close"></div>' +
+        '<div class="lightbox-dialog">' +
+          '<div class="lightbox-top">' +
+            '<div class="grow mr8">' +
+              '<h4 id="lightbox-title" class="lightbox-title truncate">Gear Photo</h4>' +
+              '<div id="lightbox-meta" class="lightbox-meta"></div>' +
+            '</div>' +
+            '<button type="button" class="lightbox-close-btn" data-act="lightbox-close" aria-label="Close photo preview">' +
+              icon('close') +
+            '</button>' +
+          '</div>' +
+          '<div class="lightbox-body">' +
+            '<div class="lightbox-spinner">' + icon('refresh') + '</div>' +
+            '<img id="lightbox-img" class="lightbox-img" alt="Enlarged gear preview">' +
+          '</div>' +
+          '<div class="lightbox-foot">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-act="lightbox-close">Close preview</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(lightboxEl);
+
+      lightboxImgEl = document.getElementById('lightbox-img');
+      lightboxTitleEl = document.getElementById('lightbox-title');
+      lightboxMetaEl = document.getElementById('lightbox-meta');
+
+      lightboxEl.addEventListener('click', function (e) {
+        var hit = e.target;
+        while (hit && hit !== lightboxEl) {
+          if (hit.getAttribute && hit.getAttribute('data-act') === 'lightbox-close') {
+            e.preventDefault();
+            closeLightbox();
+            return;
+          }
+          hit = hit.parentNode;
+        }
+      }, false);
+
+      lightboxEl.addEventListener('touchmove', function (e) {
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+    }
   }
 
   return {
@@ -407,6 +518,8 @@ App.UI = (function () {
     openSheet: openSheet,
     closeSheet: closeSheet,
     sheetHandler: function () { return currentSheetHandler; },
-    hydrateThumbs: hydrateThumbs
+    hydrateThumbs: hydrateThumbs,
+    openLightbox: openLightbox,
+    closeLightbox: closeLightbox
   };
 })();

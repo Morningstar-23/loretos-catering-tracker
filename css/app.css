@@ -7,10 +7,13 @@
    - 3D spring sort direction toggle with tactile micro-animation
    - Dynamic "Reset filters" badge button with smooth hover & active state
    - Pagination with Page Size selector (5, 10, 15, 25 items per page)
-   - Emphasized floating center circular hero button in navbar (Catering)
-   - Staggered animations on filter/search changes (.list-stagger)
    - Dedicated Staff profile styling with photo upload
-   - iPhone 5s (320px) & iOS 12 Safari optimized (no flex gap)
+   - Full-Screen High-Res Image Lightbox Modal with zoom & safe tap targets
+   - In-Transit Live Van Load-Out Editing Controls (Unlocks post-load adjustments)
+   - Multi-View Modes: Standard Cards, Compact Collapsible Accordions, 3-Col E-commerce Grid
+   - Shopee-style Swipe-to-Delete on list rows
+   - Quick Add-to-Van Modal with Stepper and MAX stock button
+   - iPhone 5s (320px) & iOS 12 Safari optimized (no modern flex gap regressions)
    ========================================================================== */
 
 :root {
@@ -213,12 +216,6 @@ body {
   to { opacity: 1; }
 }
 
-/* Stagger Animation for fresh enters and filter updates */
-.view-enter .list > *:nth-child(-n+8),
-.view-enter > .card:nth-of-type(-n+6),
-.list-stagger > *:nth-child(-n+12) {
-  animation: rowRise 0.26s var(--ease-out) backwards;
-}
 .list-stagger > *:nth-child(1)  { animation-delay: 0.01s; }
 .list-stagger > *:nth-child(2)  { animation-delay: 0.03s; }
 .list-stagger > *:nth-child(3)  { animation-delay: 0.05s; }
@@ -228,7 +225,7 @@ body {
 .list-stagger > *:nth-child(7)  { animation-delay: 0.13s; }
 .list-stagger > *:nth-child(8)  { animation-delay: 0.15s; }
 .list-stagger > *:nth-child(9)  { animation-delay: 0.17s; }
-.list-stagger > *:nth-child(10) { animation-delay: 0.19s; }
+.list-stagger > *:nth-child(10)  { animation-delay: 0.19s; }
 .list-stagger > *:nth-child(11) { animation-delay: 0.21s; }
 .list-stagger > *:nth-child(12) { animation-delay: 0.23s; }
 
@@ -663,6 +660,7 @@ body {
   color: var(--foliage);
   background-size: cover;
   background-position: center;
+  position: relative;
 }
 .thumb .icon { width: 18px; height: 18px; }
 
@@ -1125,7 +1123,7 @@ body {
   transform: scale(0.95);
 }
 
-/* Pagination Bar with Page Size Selector */
+/* Pagination Bar */
 .pagination-bar {
   display: flex;
   flex-direction: column;
@@ -1160,11 +1158,7 @@ body {
   touch-action: manipulation;
   transition: all 0.16s ease;
 }
-.pagination-btn .icon {
-  width: 13px;
-  height: 13px;
-  margin: 0 3px;
-}
+.pagination-btn .icon { width: 13px; height: 13px; margin: 0 3px; }
 .pagination-btn:not([disabled]):active {
   background: var(--sand-soft);
   transform: scale(0.96);
@@ -1225,9 +1219,7 @@ body {
   color: var(--inasal-orange);
   box-shadow: var(--shadow-xs);
 }
-.size-pill:active {
-  transform: scale(0.92);
-}
+.size-pill:active { transform: scale(0.92); }
 
 .chart-card {
   background: var(--sand-card);
@@ -1308,11 +1300,8 @@ body {
   box-shadow: var(--shadow-lg);
   overflow: hidden !important;
 }
-.sheet.open {
-  transform: translateY(0);
-}
+.sheet.open { transform: translateY(0); }
 
-/* Grabbable handle zone for swipe-down-to-dismiss */
 .sheet-handle-zone {
   width: 100%;
   padding: 9px 0 4px 0;
@@ -1321,7 +1310,6 @@ body {
   touch-action: none;
   cursor: grab;
 }
-
 .sheet-handle {
   width: 44px;
   height: 5px;
@@ -1431,7 +1419,7 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: all 0.26s var(--ease-spring);
-  z-index: 200;
+  z-index: 300;
   white-space: nowrap;
   box-shadow: var(--shadow-lg);
 }
@@ -1440,7 +1428,7 @@ body {
   transform: translateX(-50%) translateY(0) scale(1);
 }
 
-/* Animated Brand Splash Screen */
+/* Splash Screen */
 #splash {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -1457,20 +1445,17 @@ body {
   transition: opacity 0.38s ease, transform 0.38s ease;
   touch-action: none;
 }
-
 #splash.gone {
   opacity: 0;
   transform: scale(1.03);
   pointer-events: none;
 }
-
 .splash-brand {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
-
 .splash-logo-ring {
   width: 78px;
   height: 78px;
@@ -1482,7 +1467,6 @@ body {
   margin-bottom: 12px;
   animation: splashPulse 2.2s ease-in-out infinite alternate;
 }
-
 .splash-logo {
   width: 100%;
   height: 100%;
@@ -1490,7 +1474,6 @@ body {
   object-fit: cover;
   display: block;
 }
-
 .splash-title {
   font-family: "Iowan Old Style", Georgia, serif;
   font-size: 24px;
@@ -1498,18 +1481,14 @@ body {
   color: var(--inasal-orange);
   letter-spacing: -0.015em;
   margin-bottom: 4px;
-  animation: splashRise 0.45s var(--ease-out) backwards;
 }
-
 .splash-subtitle {
   color: var(--timber-soft);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.005em;
   margin-bottom: 18px;
-  animation: splashRise 0.45s var(--ease-out) 0.06s backwards;
 }
-
 .splash-bar {
   width: 108px;
   height: 4px;
@@ -1518,7 +1497,6 @@ body {
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(33, 29, 26, 0.1);
 }
-
 .splash-bar-fill {
   width: 100%;
   height: 100%;
@@ -1527,22 +1505,8 @@ body {
   transform-origin: left;
   animation: splashProgress 1.4s var(--ease-spring) infinite;
 }
-
-@keyframes splashPulse {
-  0% { transform: scale(1); }
-  100% { transform: scale(1.05); }
-}
-
-@keyframes splashRise {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes splashProgress {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(0%); }
-  100% { transform: translateX(100%); }
-}
+@keyframes splashPulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
+@keyframes splashProgress { 0% { transform: translateX(-100%); } 50% { transform: translateX(0%); } 100% { transform: translateX(100%); } }
 
 .hidden-file { display: none; }
 
@@ -1561,7 +1525,6 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 5px rgba(0, 0, 0, 0.15);
 }
-
 .event-status-pill .status-dot {
   width: 6.5px;
   height: 6.5px;
@@ -1570,7 +1533,6 @@ body {
   background: #5EE699;
   box-shadow: 0 0 6px rgba(94, 230, 153, 0.9);
 }
-
 .event-status-pill.staging .status-dot {
   background: #FFA494;
   box-shadow: 0 0 6px rgba(255, 164, 148, 0.9);
@@ -1590,32 +1552,27 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--timber-soft);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.12s ease;
 }
-.pack-thumb .icon {
-  width: 17px;
-  height: 17px;
+.pack-thumb:active {
+  transform: scale(0.92);
 }
+.pack-thumb .icon { width: 17px; height: 17px; }
 
 .tab-pane-enter {
   animation: tabPaneRise 0.22s var(--ease-out);
 }
-
 @keyframes tabPaneRise {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .seg-animated {
   position: relative;
   overflow: hidden;
 }
-
 .seg-glider {
   position: absolute;
   top: 3px;
@@ -1631,7 +1588,6 @@ body {
               width 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
   will-change: transform, width;
 }
-
 .seg-animated button {
   position: relative;
   z-index: 2;
@@ -1639,7 +1595,6 @@ body {
   box-shadow: none !important;
   transition: color 0.18s ease;
 }
-
 .seg-animated button.on {
   color: var(--inasal-orange) !important;
   font-weight: 700;
@@ -1655,12 +1610,499 @@ body {
   margin-right: 4px;
   margin-bottom: 2px;
 }
-
 .pack-item-clickable {
   cursor: pointer;
   touch-action: manipulation;
   transition: opacity 0.15s ease;
 }
-.pack-item-clickable:active {
-  opacity: 0.65;
+.pack-item-clickable:active { opacity: 0.65; }
+
+/* ==========================================================================
+   High-Resolution Lightbox Modal Styles
+   ========================================================================== */
+.lightbox {
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s var(--ease-out);
+  padding: 12px;
+  touch-action: none;
+}
+.lightbox.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lightbox-backdrop {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  inset: 0;
+  background: rgba(18, 14, 12, 0.94);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.lightbox-dialog {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 310px;
+  max-height: 88vh;
+  background: var(--pandan-cream);
+  border-radius: var(--r-lg);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transform: scale(0.96);
+  transition: transform 0.24s var(--ease-spring);
+}
+.lightbox.open .lightbox-dialog {
+  transform: scale(1);
+}
+.lightbox-top {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFFFFF;
+  flex-shrink: 0;
+}
+.lightbox-title {
+  font-family: "Iowan Old Style", Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  letter-spacing: -0.01em;
+}
+.lightbox-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.lightbox-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--sand-soft);
+  color: var(--timber-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  transition: transform 0.12s ease;
+}
+.lightbox-close-btn:active {
+  transform: scale(0.9);
+}
+.lightbox-body {
+  position: relative;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: 58vh;
+  background: #191614;
+  overflow: hidden;
+}
+.lightbox-spinner {
+  color: #FAF6F0;
+  display: none;
+  animation: spin 0.85s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 56vh;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  display: none;
+}
+.lightbox-foot {
+  padding: 8px 12px calc(8px + var(--sab)) 12px;
+  background: #FFFFFF;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Live Post-Lock Van Editing States & Banner */
+.live-edit-banner {
+  background: var(--gold-tint);
+  border: 1px solid rgba(212, 155, 66, 0.4);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-xs);
+}
+.live-edit-banner h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--inasal-dark);
+  display: flex;
+  align-items: center;
+}
+.live-edit-banner h4 .icon {
+  margin-right: 6px;
+  width: 15px;
+  height: 15px;
+  color: var(--gold);
+}
+.live-edit-banner p {
+  font-size: 11.5px;
+  color: var(--timber-soft);
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   View Mode Switcher: Cards | Compact List | E-Commerce Grid
+   ========================================================================== */
+.view-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.view-mode-pills {
+  display: inline-flex;
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 2px;
+}
+.view-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--timber-soft);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.16s var(--ease-out);
+}
+.view-mode-btn .icon {
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+}
+.view-mode-btn.on {
+  background: var(--sand-card);
+  color: var(--inasal-orange);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ==========================================================================
+   Collapsible Category Accordions
+   ========================================================================== */
+.cat-accordion {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+.cat-accordion-head {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--sand-card);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.15s ease;
+}
+.cat-accordion-head:active {
+  background: var(--sand-soft);
+}
+.cat-accordion.open .cat-accordion-head {
+  border-bottom-color: var(--line);
+  background: var(--pandan-cream);
+}
+.cat-accordion-title {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--timber-ink);
+}
+.cat-accordion-title .icon {
+  margin-right: 6px;
+  color: var(--inasal-orange);
+}
+.cat-accordion-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--timber-soft);
+  background: var(--sand-soft);
+  border-radius: var(--r-pill);
+  padding: 2px 7px;
+  margin-left: 6px;
+}
+.cat-accordion-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--timber-soft);
+  transition: transform 0.22s var(--ease-spring);
+}
+.cat-accordion.open .cat-accordion-chevron {
+  transform: rotate(180deg);
+  color: var(--inasal-orange);
+}
+.cat-accordion-body {
+  display: none;
+  padding: 6px 8px;
+}
+.cat-accordion.open .cat-accordion-body {
+  display: block;
+}
+
+/* Compact Collapsible List Row */
+.compact-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.compact-item-row:last-child {
+  border-bottom: none;
+}
+.compact-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 8px;
+  cursor: pointer;
+}
+.compact-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.2;
+}
+.compact-item-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   Shopee-Style Swipe to Delete List Row
+   ========================================================================== */
+.swipe-row-outer {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
+  background: var(--alert);
+  box-shadow: var(--shadow-xs);
+  touch-action: pan-y;
+}
+.swipe-actions-bg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 76px;
+  background: var(--alert);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.swipe-delete-btn {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.swipe-delete-btn .icon {
+  width: 17px;
+  height: 17px;
+  margin-bottom: 2px;
+}
+.swipe-row-content {
+  position: relative;
+  z-index: 2;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  transition: transform 0.22s var(--ease-out);
+  will-change: transform;
+}
+.swipe-row-content.swiped {
+  transform: translate3d(-76px, 0, 0);
+}
+
+/* ==========================================================================
+   E-Commerce Grid View (3 Columns on iPhone 5s)
+   ========================================================================== */
+.ecommerce-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.grid-item-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  transition: transform 0.14s var(--ease-out), box-shadow 0.14s ease;
+}
+.grid-item-card:active {
+  transform: scale(0.95);
+}
+.grid-thumb-box {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--sand-soft);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--timber-soft);
+  margin-bottom: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.grid-thumb-box .icon {
+  width: 24px;
+  height: 24px;
+}
+.grid-qty-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(33, 29, 26, 0.88);
+  color: #FAF6F0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+}
+.grid-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.2;
+  margin-bottom: 3px;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.grid-brand {
+  font-size: 9.5px;
+  color: var(--timber-soft);
+}
+.grid-staged-pill {
+  margin-top: 5px;
+  background: var(--inasal-soft);
+  color: var(--inasal-dark);
+  border: 1px solid rgba(200, 82, 26, 0.28);
+  border-radius: var(--r-pill);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   Add-To-Van / Quantity Stepper Pop-up Modal with MAX Button
+   ========================================================================== */
+.quick-qty-modal {
+  padding: 4px 2px;
+}
+.btn-max {
+  background: linear-gradient(160deg, #D49B42 0%, #B87E28 100%);
+  color: #FFFFFF;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 1px 4px rgba(184, 126, 40, 0.35);
+  margin-left: 6px;
+  transition: transform 0.12s ease;
+}
+.btn-max:active {
+  transform: scale(0.92);
+}
+.quick-qty-pills {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0;
+}
+.quick-qty-pills button {
+  min-width: 44px;
+  height: 32px;
+  margin: 0 3px;
+  background: var(--sand-card);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.14s ease;
+}
+.quick-qty-pills button:active {
+  background: var(--sand-soft);
+  transform: scale(0.94);
 }

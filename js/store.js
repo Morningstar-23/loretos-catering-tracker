@@ -4,6 +4,9 @@
    - Added permanent "Others" category (icon: 'grid')
    - Low stock threshold configurable per item
    - Stock health filtering: All, Low stock, Empty stock, In stock
+   - Safe in-transit load-out adjustments & returns clamping
+   - Fixed setOut to insert fresh items when not already in ev.lines
+   - Preset updating & saving from active loaded events
    - Plain text manifest generator for SMS / WhatsApp / Notepad
    - Visual trend & chart data aggregators
    ========================================================================== */
@@ -144,7 +147,6 @@ App.Store = (function () {
     if (!s.events) s.events = [];
     if (!s.settings) s.settings = { business: "Loreto's Kitchen", deductMissing: false, deductConsumed: true, lastBackup: '' };
 
-    // Ensure 'Others' category exists in loaded state
     var hasOthers = s.categories.some(function (c) {
       return c.id === 'c-other' || (c.name && c.name.toLowerCase() === 'others');
     });
@@ -185,6 +187,7 @@ App.Store = (function () {
     s.events.forEach(function (ev) {
       if (!ev.staffIds) ev.staffIds = [];
       if (!ev.lines) ev.lines = [];
+      if (ev.presetId === undefined) ev.presetId = '';
       ev.lines.forEach(function (l) {
         if (l.isConsumable === undefined) {
           var matchedItem = item(l.itemId);
@@ -192,6 +195,7 @@ App.Store = (function () {
         } else {
           l.isConsumable = !!l.isConsumable;
         }
+        if (l.back === undefined) l.back = 0;
       });
     });
 
@@ -233,7 +237,6 @@ App.Store = (function () {
     return c ? c.name : 'Uncategorised';
   }
 
-  /* Multi-Criteria Search & Stock Health Filter */
   function searchItems(q, catId, sortBy, stockFilter) {
     q = (q || '').toLowerCase().trim();
     var filtered = s.items.filter(function (i) {
@@ -465,13 +468,14 @@ App.Store = (function () {
     return null;
   }
 
-  function checkPresetAvailability(presetId) {
+  function checkPresetAvailability(presetId, ignoreActiveEventLines) {
     var p = preset(presetId);
     if (!p) return null;
     var lines = [], shortCount = 0, totalNeeded = 0, totalAvailable = 0;
     var ev = activeEvent();
     var outMap = {};
-    if (ev) {
+
+    if (ev && !ignoreActiveEventLines) {
       ev.lines.forEach(function (l) {
         outMap[l.itemId] = (outMap[l.itemId] || 0) + (l.out - (ev.status === 'out' ? l.back : 0));
       });
@@ -542,6 +546,20 @@ App.Store = (function () {
       })
     };
     s.presets.push(p);
+    if (ev) ev.presetId = p.id;
+    save();
+    return p;
+  }
+
+  function updatePresetFromEvent(ev, presetId) {
+    if (!ev) return null;
+    var pId = presetId || ev.presetId;
+    var p = preset(pId);
+    if (!p) return null;
+    p.lines = ev.lines.map(function (l) {
+      return { itemId: l.itemId, qty: l.out };
+    });
+    p.updatedAt = now();
     save();
     return p;
   }
@@ -610,10 +628,10 @@ App.Store = (function () {
       itemId: it.id,
       name: it.name,
       brand: it.brand || '',
-      unit: it.unit,
+      unit: it.unit || 'pc',
       isConsumable: !!it.isConsumable,
-      tagLabel: it.tagLabel,
-      tagColor: it.tagColor,
+      tagLabel: it.tagLabel || '',
+      tagColor: it.tagColor || 'orange',
       tagStyle: 'tape',
       out: qty,
       back: 0
@@ -631,6 +649,7 @@ App.Store = (function () {
       notOurs: [],
       staffIds: d.staffIds || [],
       note: d.note || '',
+      presetId: d.presetId || '',
       createdAt: now(),
       loadedAt: '',
       closedAt: ''
@@ -653,6 +672,7 @@ App.Store = (function () {
   }
 
   function addLine(ev, itemId, qty) {
+    if (!ev) return;
     var ex = null;
     ev.lines.forEach(function (l) { if (l.itemId === itemId) ex = l; });
     if (ex) {
@@ -665,18 +685,95 @@ App.Store = (function () {
     save();
   }
 
+  function removeLine(ev, itemId) {
+    if (!ev) return;
+    ev.lines = ev.lines.filter(function (l) { return l.itemId !== itemId; });
+    save();
+  }
+
+  /* Adjust 'out' count safely — fixes bug where fresh items were not pushed into ev.lines */
   function setOut(ev, itemId, n) {
+    if (!ev) return;
+    var found = false;
+    var targetQty = Math.max(0, n);
     ev.lines.forEach(function (l) {
-      if (l.itemId === itemId) l.out = Math.max(0, n);
+      if (l.itemId === itemId) {
+        found = true;
+        l.out = targetQty;
+        if (l.back > l.out) l.back = l.out;
+      }
     });
+
+    // If item was not yet in van and quantity > 0, insert it!
+    if (!found && targetQty > 0) {
+      var it = item(itemId);
+      if (it) {
+        ev.lines.push(lineFrom(it, targetQty));
+      }
+    }
+
     ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
     save();
   }
 
   function setBack(ev, itemId, n) {
+    if (!ev) return;
     ev.lines.forEach(function (l) {
       if (l.itemId === itemId) l.back = Math.max(0, Math.min(l.out, n));
     });
+    save();
+  }
+
+  /* Preset Merging & Full Replacement on Active/Loaded Events */
+  function applyPresetToEvent(ev, presetId, mode, clamp) {
+    if (!ev) return;
+    var pKit = preset(presetId);
+    if (!pKit) return;
+
+    if (mode === 'replace') {
+      ev.presetId = presetId;
+      var oldLinesMap = {};
+      ev.lines.forEach(function (l) { oldLinesMap[l.itemId] = l; });
+
+      var newLines = [];
+      pKit.lines.forEach(function (pl) {
+        var it = item(pl.itemId);
+        if (!it) return;
+        var targetQty = clamp ? Math.min(pl.qty, it.qty) : pl.qty;
+        if (targetQty <= 0) return;
+
+        var preservedBack = 0;
+        if (oldLinesMap[pl.itemId]) {
+          preservedBack = Math.min(oldLinesMap[pl.itemId].back, targetQty);
+        }
+
+        var l = lineFrom(it, targetQty);
+        l.back = preservedBack;
+        newLines.push(l);
+      });
+      ev.lines = newLines;
+    } else {
+      if (!ev.presetId) ev.presetId = presetId;
+      pKit.lines.forEach(function (pl) {
+        var it = item(pl.itemId);
+        if (!it) return;
+        var addQty = clamp ? Math.min(pl.qty, it.qty) : pl.qty;
+        if (addQty > 0) addLine(ev, it.id, addQty);
+      });
+    }
+    save();
+  }
+
+  function returnToStaging(ev) {
+    if (!ev) return;
+    ev.status = 'staging';
+    save();
+  }
+
+  function markLoaded(ev) {
+    if (!ev) return;
+    ev.status = 'out';
+    ev.loadedAt = now();
     save();
   }
 
@@ -691,12 +788,6 @@ App.Store = (function () {
   function unassignStaff(ev, staffId) {
     if (!ev.staffIds) return;
     ev.staffIds = ev.staffIds.filter(function (id) { return id !== staffId; });
-    save();
-  }
-
-  function markLoaded(ev) {
-    ev.status = 'out';
-    ev.loadedAt = now();
     save();
   }
 
@@ -942,10 +1033,12 @@ App.Store = (function () {
     categories: categories, category: category, categoryName: categoryName,
     saveCategory: saveCategory, removeCategory: removeCategory, resetCategoriesToDefault: resetCategoriesToDefault,
     presets: presets, preset: preset, checkPresetAvailability: checkPresetAvailability,
-    savePreset: savePreset, savePresetFromEvent: savePresetFromEvent, removePreset: removePreset,
+    savePreset: savePreset, savePresetFromEvent: savePresetFromEvent, updatePresetFromEvent: updatePresetFromEvent, removePreset: removePreset,
     staff: staff, staffMember: staffMember, saveStaff: saveStaff, removeStaff: removeStaff,
     activeEvent: activeEvent, event: event, createEvent: createEvent,
-    addLine: addLine, setOut: setOut, setBack: setBack, assignStaff: assignStaff, unassignStaff: unassignStaff,
+    addLine: addLine, removeLine: removeLine, setOut: setOut, setBack: setBack,
+    applyPresetToEvent: applyPresetToEvent, returnToStaging: returnToStaging,
+    assignStaff: assignStaff, unassignStaff: unassignStaff,
     markLoaded: markLoaded, addNotOurs: addNotOurs, removeNotOurs: removeNotOurs,
     tally: tally, closeEvent: closeEvent, removeEvent: removeEvent, history: history,
     kpis: kpis, exportData: exportData, importData: importData, reset: reset
