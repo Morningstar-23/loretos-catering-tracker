@@ -103,7 +103,7 @@ App.Views.settings = (function () {
         '</button>' +
       '</div>' +
 
-      '<p class="muted mt16" style="text-align:center;font-size:11px">Loreto\'s Catering Tracker &middot; Adelaide SA &middot; v2.0</p>';
+      '<p class="muted mt16" style="text-align:center;font-size:11px">Loreto\'s Catering Tracker &middot; Adelaide SA &middot; v20</p>';
   }
 
   function mounted() {
