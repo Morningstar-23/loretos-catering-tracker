@@ -5,7 +5,7 @@
    - Controlled update lifecycle (waits for user prompt / reload)
    ========================================================================== */
 
-var CACHE = 'lct-v23';
+var CACHE = 'lct-v24';
 
 var SHELL = [
   './',

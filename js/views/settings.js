@@ -402,6 +402,11 @@ App.Views.settings = (function () {
 
     if (act === 'manage-presets') {
       App.go('catering');
+      setTimeout(function () {
+        if (App.Views.catering && App.Views.catering.openPresetManagerSheet) {
+          App.Views.catering.openPresetManagerSheet();
+        }
+      }, 70);
       return;
     }
 

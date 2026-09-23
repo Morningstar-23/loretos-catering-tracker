@@ -467,7 +467,6 @@ App.Views.catering = (function () {
     var tabSwitched = (lastRenderedTab !== tab);
     lastRenderedTab = tab;
 
-    // Animations ONLY trigger on actual tab navigation, preventing flashes on stepper clicks
     var animClass = tabSwitched ? ' tab-pane-enter list-stagger' : '';
 
     return head(ev) + segs(ev) + '<div class="catering-tab-pane' + animClass + '">' + body + '</div>';
@@ -1291,6 +1290,7 @@ App.Views.catering = (function () {
     mounted: mounted,
     onAct: onAct,
     openGearChecklist: openGearChecklist,
-    openPresetEditor: openPresetEditor
+    openPresetEditor: openPresetEditor,
+    openPresetManagerSheet: openPresetManagerSheet
   };
 })();

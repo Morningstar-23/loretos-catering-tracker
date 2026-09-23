@@ -1299,16 +1299,25 @@ body {
 .sheet.open {
   transform: translateY(0);
 }
+/* Make the top handle zone a large, easy-to-swipe touch target */
+.sheet-handle-zone {
+  width: 100%;
+  padding: 8px 0 4px 0;
+  display: flex;
+  justify-content: center;
+  touch-action: none;
+  cursor: grab;
+}
+
 .sheet-handle {
-  width: 38px;
-  height: 4.5px;
+  width: 44px;
+  height: 5px;
   background: var(--line-strong);
   border-radius: 3px;
-  margin: 9px auto 3px auto;
-  flex-shrink: 0;
+  pointer-events: none;
 }
 .sheet-head {
-  padding: 7px 15px 11px 15px;
+  padding: 4px 15px 11px 15px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1316,6 +1325,7 @@ body {
   background: var(--pandan-cream);
   flex-shrink: 0;
   z-index: 2;
+  touch-action: none; /* Prevents Safari pull-to-refresh on header swipe */
 }
 .sheet-title {
   font-family: "Iowan Old Style", Georgia, serif;

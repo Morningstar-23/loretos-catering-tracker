@@ -2,8 +2,8 @@
    Loreto's Catering Tracker — UI Utilities & Component Helpers (js/ui.js)
    - Optimized for iPhone 5s (320px viewport) & iOS 12 Mobile Safari
    - True Modal Isolation (#sheet-foot completely outside #sheet-body)
-   - Added category icons: coffee, package, grid (Others), chevronDown, chevronLeft
-   - Clean, unified single-style label badges
+   - Interactive Swipe-Down-To-Dismiss (Blocks browser pull-to-refresh)
+   - Category icons: coffee, package, grid (Others), chevronDown, chevronLeft
    ========================================================================== */
 window.App = window.App || {};
 
@@ -83,7 +83,6 @@ App.UI = (function () {
     }
   }
 
-  /* Unified Single Presentation Label */
   function tag(label, color) {
     if (!label) return '';
     color = color || 'orange';
@@ -154,6 +153,11 @@ App.UI = (function () {
     sheetBodyEl.innerHTML = contentHtml;
     sheetBodyEl.scrollTop = 0;
 
+    // Reset inline drag styles before opening
+    sheetEl.style.transform = '';
+    sheetEl.style.transition = '';
+    if (backdropEl) backdropEl.style.opacity = '';
+
     var inlineFooter = sheetBodyEl.querySelector('.sheet-sticky-footer');
     if (inlineFooter && sheetFootEl) {
       sheetFootEl.innerHTML = inlineFooter.innerHTML;
@@ -177,6 +181,11 @@ App.UI = (function () {
     backdropEl.className = 'backdrop';
     document.body.style.overflow = '';
     currentSheetHandler = null;
+
+    sheetEl.style.transform = '';
+    sheetEl.style.transition = '';
+    if (backdropEl) backdropEl.style.opacity = '';
+
     if (sheetFootEl) {
       sheetFootEl.innerHTML = '';
       sheetFootEl.style.display = 'none';
@@ -202,6 +211,136 @@ App.UI = (function () {
     }
   }
 
+  /* Interactive Swipe-Down-To-Dismiss Engine */
+  function attachDragListeners() {
+    var startY = 0;
+    var currentDeltaY = 0;
+    var isDragging = false;
+    var dragTarget = null;
+
+    function getTouchY(e) {
+      return (e.touches && e.touches[0]) ? e.touches[0].clientY : 0;
+    }
+
+    sheetEl.addEventListener('touchstart', function (e) {
+      if (!sheetEl.classList.contains('open')) return;
+      var y = getTouchY(e);
+      startY = y;
+      currentDeltaY = 0;
+      isDragging = false;
+
+      var target = e.target;
+      var cur = target;
+      var isHandleOrHead = false;
+      var isBody = false;
+
+      while (cur && cur !== sheetEl && cur !== document.body) {
+        if (cur.classList) {
+          if (cur.classList.contains('sheet-handle') || cur.classList.contains('sheet-head')) {
+            isHandleOrHead = true;
+            break;
+          }
+          if (cur.classList.contains('sheet-body')) {
+            isBody = true;
+          }
+        }
+        cur = cur.parentNode;
+      }
+
+      if (isHandleOrHead) {
+        dragTarget = 'handle';
+      } else if (isBody && sheetBodyEl && sheetBodyEl.scrollTop <= 0) {
+        dragTarget = 'body';
+      } else {
+        dragTarget = null;
+      }
+    }, { passive: true });
+
+    sheetEl.addEventListener('touchmove', function (e) {
+      if (!dragTarget) return;
+      var y = getTouchY(e);
+      var deltaY = y - startY;
+
+      // Only handle downward drag
+      if (deltaY > 0) {
+        if (dragTarget === 'body') {
+          // If body was scrolled down, let standard scrolling happen
+          if (sheetBodyEl.scrollTop > 0) return;
+        }
+
+        // CRITICAL: Block native iOS pull-to-refresh & page rubber-banding
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+
+        isDragging = true;
+        currentDeltaY = deltaY;
+
+        sheetEl.style.transition = 'none';
+        sheetEl.style.transform = 'translate3d(0, ' + deltaY + 'px, 0)';
+
+        var sheetHeight = sheetEl.offsetHeight || 360;
+        var ratio = Math.max(0, 1 - (deltaY / sheetHeight));
+        if (backdropEl) {
+          backdropEl.style.opacity = ratio;
+        }
+      } else if (deltaY < 0 && dragTarget === 'handle') {
+        // Prevent stretching upward when pulling handle up
+        if (e.cancelable) e.preventDefault();
+        sheetEl.style.transform = 'translate3d(0, 0, 0)';
+      }
+    }, { passive: false }); // Must be passive: false to allow e.preventDefault()
+
+    sheetEl.addEventListener('touchend', function (e) {
+      if (!isDragging) {
+        dragTarget = null;
+        return;
+      }
+
+      sheetEl.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)';
+      if (backdropEl) {
+        backdropEl.style.transition = 'opacity 0.24s ease';
+      }
+
+      // If dragged down past 80px, dismiss the sheet
+      if (currentDeltaY > 80) {
+        sheetEl.style.transform = 'translate3d(0, 100%, 0)';
+        if (backdropEl) backdropEl.style.opacity = '0';
+
+        setTimeout(function () {
+          closeSheet();
+        }, 240);
+      } else {
+        // Snap back into place
+        sheetEl.style.transform = 'translate3d(0, 0, 0)';
+        if (backdropEl) backdropEl.style.opacity = '1';
+
+        setTimeout(function () {
+          sheetEl.style.transform = '';
+          sheetEl.style.transition = '';
+          if (backdropEl) {
+            backdropEl.style.opacity = '';
+            backdropEl.style.transition = '';
+          }
+        }, 240);
+      }
+
+      isDragging = false;
+      dragTarget = null;
+    }, { passive: true });
+
+    // Block background touch-dragging on the backdrop and bottom pinned footer
+    backdropEl.addEventListener('touchmove', function (e) {
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    if (sheetFootEl) {
+      sheetFootEl.addEventListener('touchmove', function (e) {
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+    }
+  }
+
   function boot() {
     sheetEl = document.getElementById('sheet');
     sheetTitleEl = document.getElementById('sheet-title');
@@ -221,7 +360,9 @@ App.UI = (function () {
       sheetEl.id = 'sheet';
       sheetEl.className = 'sheet';
       sheetEl.innerHTML =
-        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-handle-zone">' +
+          '<div class="sheet-handle"></div>' +
+        '</div>' +
         '<div class="sheet-head">' +
           '<h3 id="sheet-title" class="sheet-title truncate"></h3>' +
           '<button type="button" class="sheet-close" data-act="sheet-close" aria-label="Close">' +
@@ -235,6 +376,8 @@ App.UI = (function () {
       sheetTitleEl = document.getElementById('sheet-title');
       sheetBodyEl = document.getElementById('sheet-body');
       sheetFootEl = document.getElementById('sheet-foot');
+
+      attachDragListeners();
     } else {
       if (!sheetFootEl) {
         sheetFootEl = document.createElement('div');
