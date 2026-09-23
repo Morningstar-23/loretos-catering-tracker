@@ -179,7 +179,6 @@
     window.APP_VERSION = 'Loading...';
     window.pendingUpdateWorker = null;
 
-    // Immediately fetch cache name as dynamic version fallback
     if ('caches' in window) {
       caches.keys().then(function (keys) {
         for (var i = 0; i < keys.length; i++) {
@@ -214,11 +213,10 @@
 
       if (btnLater) {
         btnLater.onclick = function () {
-          banner.style.display = 'none'; // Dismiss banner, badge stays on Settings
+          banner.style.display = 'none';
         };
       }
 
-      // If Settings view is currently mounted, update its UI immediately
       if (window.App && window.App.rerenderQuiet) {
         window.App.rerenderQuiet();
       }
@@ -229,12 +227,10 @@
         navigator.serviceWorker.register('./sw.js').then(function (reg) {
           window.swRegistration = reg;
 
-          // Case A: Updated worker already waiting
           if (reg.waiting) {
             showUpdateNotification(reg.waiting);
           }
 
-          // Case B: Worker found and installing
           reg.addEventListener('updatefound', function () {
             var newWorker = reg.installing;
             if (!newWorker) return;
@@ -246,12 +242,10 @@
             });
           });
 
-          // Case C: Query active worker for current version string
           if (navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ action: 'getVersion' });
           }
 
-          // Force check GitHub Pages when opened, focused, or reconnected
           function checkUpdate() {
             if (navigator.onLine) reg.update().catch(function () {});
           }
@@ -265,7 +259,6 @@
 
         }).catch(function () {});
 
-        // Listen for version response from sw.js
         navigator.serviceWorker.addEventListener('message', function (e) {
           if (e.data && e.data.action === 'version') {
             window.APP_VERSION = e.data.version;
@@ -274,7 +267,6 @@
           }
         });
 
-        // When updated worker takes control, refresh page automatically
         var refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', function () {
           if (!refreshing) {
@@ -293,7 +285,10 @@
   <script src="js/store.js"></script>
   <script src="js/views/dashboard.js"></script>
   <script src="js/views/inventory.js"></script>
-  <script src="js/views/catering.js"></script>
+  <script src="js/views/catering/catering-modals.js"></script>
+  <script src="js/views/catering/catering-kits.js"></script>
+  <script src="js/views/catering/catering-views.js"></script>
+  <script src="js/views/catering/catering.js"></script>
   <script src="js/views/history.js"></script>
   <script src="js/views/settings.js"></script>
   <script src="js/app.js"></script>

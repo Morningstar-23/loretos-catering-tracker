@@ -1,12 +1,14 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Stylesheet (css/app.css)
    - Native App Shell: Rigid viewport lock (Zero drag-to-reload / rubberband)
-   - Topbar: Left-aligned title with right header action button & brand logo
-   - Reusable Icon View-Mode Switcher: Cards, Compact List, 3-Col Grid
-   - Pack-Down & Shelf View Modes: Unified Compact Accordions & E-Commerce Grid
-   - Reusable Pagination Bar: Optimized for 320px iPhone 5s viewport
-   - Custom Dropdowns, 3D Spring Sort Toggle, Lightbox, and Modal Sheets
-   - Full iOS 12 Mobile Safari Compatibility (No flex-gap layout regressions)
+   - Anti-Flash Button Actions & Spring Tap Feedback (iOS 12 Safari / iPhone 5s)
+   - View Mode Switcher: Animated "Magic Pill" Background Glider
+   - Standalone Grid Density Bar (Zero Top-Bar Layout Shift)
+   - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
+   - Adjustable Responsive E-Commerce Grid: 2, 3, or 4 Columns per row
+   - Per-Category Collapsible Accordion Pagination
+   - Clean Non-Truncated Kit Presets & Header Display
+   - iPhone 5s (320px viewport) & Safe-Area Optimized
    ========================================================================== */
 
 :root {
@@ -62,7 +64,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Rigid Native Viewport — Eliminates Browser Drag-To-Reload & Body Bouncing */
 html, body {
   position: fixed;
   top: 0;
@@ -170,7 +171,7 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   box-shadow: var(--shadow-orange-sm);
-  transition: transform 0.15s var(--ease-spring), box-shadow 0.15s ease, background-color 0.15s ease;
+  transition: transform 0.16s var(--ease-spring), opacity 0.14s ease, box-shadow 0.16s ease;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -181,9 +182,8 @@ body {
   margin-right: 4px;
 }
 .topbar-btn:active {
-  transform: scale(0.93);
-  background: var(--inasal-dark);
-  box-shadow: 0 1px 4px rgba(200, 82, 26, 0.25);
+  transform: scale(0.92);
+  opacity: 0.88;
 }
 
 /* Scroll Area strictly trapped inside #view */
@@ -202,11 +202,17 @@ body {
 }
 
 .view-enter {
-  animation: viewFadeIn 0.28s var(--ease-out);
+  -webkit-animation: viewFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: viewFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+@-webkit-keyframes viewFadeIn {
+  from { opacity: 0; -webkit-transform: translate3d(0, 4px, 0); transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 @keyframes viewFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; -webkit-transform: translate3d(0, 4px, 0); transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 
 .list-stagger > *:nth-child(1)  { animation-delay: 0.01s; }
@@ -219,8 +225,6 @@ body {
 .list-stagger > *:nth-child(8)  { animation-delay: 0.15s; }
 .list-stagger > *:nth-child(9)  { animation-delay: 0.17s; }
 .list-stagger > *:nth-child(10) { animation-delay: 0.19s; }
-.list-stagger > *:nth-child(11) { animation-delay: 0.21s; }
-.list-stagger > *:nth-child(12) { animation-delay: 0.23s; }
 
 /* Bottom Tabbar with Elevated Hero Circle */
 #tabbar {
@@ -304,7 +308,7 @@ body {
 }
 
 .tab.tab-hero:active .tab-hero-bubble {
-  transform: scale(0.92);
+  transform: scale(0.90);
 }
 
 .tab.tab-hero.on .tab-hero-bubble {
@@ -420,7 +424,7 @@ body {
   font-weight: 600;
   border-radius: 8px;
   touch-action: manipulation;
-  transition: background-color 0.22s var(--ease-out), color 0.22s ease, box-shadow 0.22s ease;
+  transition: transform 0.16s var(--ease-spring), background-color 0.22s var(--ease-out), color 0.22s ease, box-shadow 0.22s ease;
 }
 .seg button:not(:last-child) { margin-right: 2px; }
 .seg button.on {
@@ -430,7 +434,7 @@ body {
   box-shadow: var(--shadow-xs), 0 0 0 1px rgba(33, 29, 26, 0.03);
 }
 .seg button:active {
-  transform: scale(0.97);
+  transform: scale(0.94);
 }
 
 .kpi-grid {
@@ -474,6 +478,7 @@ body {
 }
 .kpi-hot .kpi-n { color: var(--alert); }
 
+/* Enhanced Button Click & Spring Touch Feedback */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -488,10 +493,12 @@ body {
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
-  transition: transform 0.15s var(--ease-out), box-shadow 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.16s var(--ease-spring), opacity 0.12s ease, box-shadow 0.16s ease;
+  will-change: transform;
 }
 .btn:active {
-  transform: scale(0.965);
+  transform: scale(0.95);
+  opacity: 0.88;
 }
 .btn-sm {
   min-height: 38px;
@@ -504,8 +511,9 @@ body {
   box-shadow: var(--shadow-orange-sm);
 }
 .btn-primary:active {
-  background: var(--inasal-dark);
-  box-shadow: 0 2px 6px rgba(200, 82, 26, 0.22);
+  transform: scale(0.95) translateY(1px);
+  opacity: 0.92;
+  box-shadow: 0 1px 3px rgba(200, 82, 26, 0.4);
 }
 .btn-ghost {
   background-color: var(--sand-card);
@@ -514,7 +522,9 @@ body {
   box-shadow: var(--shadow-xs);
 }
 .btn-ghost:active {
+  transform: scale(0.95);
   background-color: var(--sand-soft);
+  opacity: 0.92;
 }
 .btn-danger {
   background-color: var(--alert-tint);
@@ -522,7 +532,9 @@ body {
   color: var(--alert);
 }
 .btn-danger:active {
-  background-color: #F8D9D4;
+  transform: scale(0.95);
+  background-color: #F8D7DA;
+  opacity: 0.9;
 }
 
 .input {
@@ -577,11 +589,11 @@ body {
   color: var(--timber-ink);
   cursor: pointer;
   touch-action: manipulation;
-  transition: background-color 0.15s ease, transform 0.12s ease;
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease;
 }
 .step-btn:active {
   background: var(--sand-soft);
-  transform: scale(0.9);
+  transform: scale(0.86);
 }
 .step-num {
   width: 40px;
@@ -626,12 +638,10 @@ body {
   border-style: solid;
   touch-action: manipulation;
   box-shadow: var(--shadow-xs);
-  transition: transform 0.14s var(--ease-out), box-shadow 0.14s ease, background-color 0.14s ease;
+  transition: transform 0.16s var(--ease-spring), box-shadow 0.14s ease;
 }
 .item:active {
-  background: var(--sand-soft);
-  transform: scale(0.985);
-  box-shadow: none;
+  transform: scale(0.975);
 }
 
 .thumb {
@@ -652,7 +662,6 @@ body {
 }
 .thumb .icon { width: 18px; height: 18px; }
 
-/* Staff Row & Profile Components */
 .staff-thumb {
   width: 38px;
   height: 38px;
@@ -683,6 +692,7 @@ body {
   font-weight: 700;
   color: var(--timber-ink);
   letter-spacing: -0.005em;
+  word-break: break-word;
 }
 .item-sub {
   display: block;
@@ -705,7 +715,7 @@ body {
   border-radius: var(--r-md);
   padding: 11px;
   box-shadow: var(--shadow-xs);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.16s var(--ease-spring);
 }
 .pack-row.short {
   border-color: rgba(214, 57, 32, 0.4);
@@ -768,7 +778,7 @@ body {
   font-size: 11px;
   font-weight: 700;
   touch-action: manipulation;
-  transition: all 0.16s var(--ease-out);
+  transition: all 0.16s var(--ease-spring);
 }
 .cat-btn .icon { width: 17px; height: 17px; margin-bottom: 4px; }
 .cat-btn.selected {
@@ -778,7 +788,7 @@ body {
   box-shadow: var(--shadow-xs);
   transform: translateY(-1px);
 }
-.cat-btn:active { transform: scale(0.96); }
+.cat-btn:active { transform: scale(0.93); }
 
 .cat-icon-grid {
   display: flex;
@@ -808,7 +818,7 @@ body {
   box-shadow: var(--shadow-xs);
   transform: scale(1.05);
 }
-.cat-icon-opt:active { transform: scale(0.94); }
+.cat-icon-opt:active { transform: scale(0.92); }
 
 .swatch-picker {
   display: flex;
@@ -826,7 +836,7 @@ body {
   transition: transform 0.15s var(--ease-spring);
   margin: 0 0 9px 9px;
 }
-.swatch-circle:active { transform: scale(0.88); }
+.swatch-circle:active { transform: scale(0.86); }
 .swatch-circle.selected {
   border-color: var(--timber-ink);
   box-shadow: 0 0 0 2px #fff inset, var(--shadow-sm);
@@ -887,11 +897,10 @@ body {
   align-items: center;
   touch-action: manipulation;
   box-shadow: var(--shadow-xs);
-  transition: background-color 0.18s var(--ease-out), border-color 0.18s ease,
-              color 0.18s ease, box-shadow 0.18s ease, transform 0.14s var(--ease-out);
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease, color 0.15s ease;
 }
 .chip .icon { width: 13px; height: 13px; margin-right: 5px; }
-.chip:active { transform: scale(0.95); }
+.chip:active { transform: scale(0.92); }
 
 .chip.on {
   background: linear-gradient(160deg, #D15E23, var(--inasal-orange));
@@ -920,7 +929,7 @@ body {
   background: #FFFFFF;
 }
 
-/* Custom Animated Filter & Sort Dropdown Components */
+/* Custom Dropdown Filters */
 .filter-row {
   display: flex;
   align-items: center;
@@ -951,10 +960,11 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   box-shadow: var(--shadow-xs);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .c-dropdown-btn:active {
   background: var(--sand-soft);
+  transform: scale(0.97);
 }
 .c-dropdown-btn.active {
   border-color: var(--inasal-orange);
@@ -973,7 +983,7 @@ body {
   height: 13px;
   color: var(--timber-soft);
   flex-shrink: 0;
-  transition: transform 0.22s var(--ease-spring), color 0.18s ease;
+  transition: transform 0.22s var(--ease-spring);
 }
 .c-dropdown-chevron.open {
   transform: rotate(180deg);
@@ -1029,7 +1039,7 @@ body {
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background-color 0.14s ease, color 0.14s ease;
+  transition: background-color 0.12s ease;
 }
 .c-dropdown-item:active {
   background: var(--sand-soft);
@@ -1047,7 +1057,6 @@ body {
   margin-left: 6px;
 }
 
-/* 3D Spring Animated Sort Direction Toggle */
 .sort-dir-btn {
   flex: 0 0 38px;
   width: 38px;
@@ -1062,11 +1071,10 @@ body {
   justify-content: center;
   touch-action: manipulation;
   box-shadow: var(--shadow-xs);
-  transition: transform 0.16s var(--ease-spring), background-color 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.16s var(--ease-spring);
 }
 .sort-dir-btn:active {
-  transform: scale(0.9);
-  background: var(--sand-soft);
+  transform: scale(0.90);
 }
 .sort-dir-btn.disabled {
   opacity: 0.38;
@@ -1083,7 +1091,6 @@ body {
   transform: rotate(180deg);
 }
 
-/* Dynamic Reset Filters Button */
 .btn-reset-filters {
   display: inline-flex;
   align-items: center;
@@ -1097,8 +1104,11 @@ body {
   color: var(--inasal-orange);
   cursor: pointer;
   touch-action: manipulation;
-  transition: all 0.15s ease;
   white-space: nowrap;
+  transition: transform 0.15s var(--ease-spring);
+}
+.btn-reset-filters:active {
+  transform: scale(0.92);
 }
 .btn-reset-filters .icon {
   width: 11px;
@@ -1106,12 +1116,59 @@ body {
   stroke-width: 2.2;
   margin-right: 4px;
 }
-.btn-reset-filters:active {
-  background: var(--inasal-soft);
-  transform: scale(0.95);
+
+/* ==========================================================================
+   Top Compact Pagination Bar (iPhone 5s 320px Optimized)
+   ========================================================================== */
+.top-pagination-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  margin-bottom: 9px;
+  box-shadow: var(--shadow-xs);
+}
+.top-page-btn {
+  width: auto;
+  min-width: 68px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--sand-card);
+  border: 1px solid var(--line-strong);
+  color: var(--timber-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s var(--ease-spring), background-color 0.12s ease;
+}
+.top-page-btn:not([disabled]):active {
+  transform: scale(0.92);
+  background: var(--pandan-cream);
+}
+.top-page-btn[disabled] {
+  opacity: 0.35;
+  pointer-events: none;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.top-page-info {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--timber-soft);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
-/* Reusable Pagination Bar (iPhone 5s 320px Optimized) */
+/* Reusable Bottom Pagination Bar */
 .pagination-bar {
   display: flex;
   flex-direction: column;
@@ -1144,12 +1201,12 @@ body {
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
-  transition: all 0.16s ease;
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease;
 }
 .pagination-btn .icon { width: 13px; height: 13px; margin: 0 3px; }
 .pagination-btn:not([disabled]):active {
   background: var(--sand-soft);
-  transform: scale(0.96);
+  transform: scale(0.93);
 }
 .pagination-btn[disabled] {
   opacity: 0.35;
@@ -1200,14 +1257,14 @@ body {
   font-weight: 700;
   cursor: pointer;
   touch-action: manipulation;
-  transition: all 0.16s var(--ease-out);
+  transition: transform 0.14s var(--ease-spring);
 }
+.size-pill:active { transform: scale(0.88); }
 .size-pill.on {
   background: var(--sand-card);
   color: var(--inasal-orange);
   box-shadow: var(--shadow-xs);
 }
-.size-pill:active { transform: scale(0.92); }
 
 .chart-card {
   background: var(--sand-card);
@@ -1238,11 +1295,6 @@ body {
   max-width: 22px;
   border-radius: 5px 5px 2px 2px;
   transition: height 0.4s var(--ease-out);
-  animation: barRise 0.45s var(--ease-out) backwards;
-}
-@keyframes barRise {
-  from { transform: scaleY(0); opacity: 0; }
-  to { transform: scaleY(1); opacity: 1; }
 }
 .chart-label {
   font-size: 9px;
@@ -1252,16 +1304,15 @@ body {
   text-align: center;
 }
 
+/* Backdrop */
 .backdrop {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
-  background: rgba(33, 29, 26, 0.6);
-  -webkit-backdrop-filter: blur(1.5px);
-  backdrop-filter: blur(1.5px);
+  background: rgba(33, 29, 26, 0.62);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.24s ease;
+  transition: opacity 0.22s ease;
   z-index: 100;
   touch-action: none;
 }
@@ -1283,7 +1334,7 @@ body {
   display: flex;
   flex-direction: column;
   transform: translateY(100%);
-  transition: transform 0.34s var(--ease-out);
+  transition: transform 0.32s var(--ease-out);
   z-index: 101;
   box-shadow: var(--shadow-lg);
   overflow: hidden !important;
@@ -1334,11 +1385,11 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease;
 }
 .sheet-close:active {
   background: var(--line);
-  transform: scale(0.9);
+  transform: scale(0.90);
 }
 
 .sheet-body {
@@ -1362,6 +1413,44 @@ body {
   z-index: 20;
   box-shadow: 0 -6px 18px rgba(33, 29, 26, 0.07);
   touch-action: none;
+}
+
+/* Inter-Modal Routing Page Animations (Forward Push & Back Pop Transitions) */
+.sheet-page-slide-forward {
+  animation: modalPageSlideForward 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.sheet-page-slide-back {
+  animation: modalPageSlideBack 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modalPageSlideForward {
+  0% {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes modalPageSlideBack {
+  0% {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.sheet-title-fade {
+  animation: titleFadeIn 0.20s var(--ease-out);
+}
+@keyframes titleFadeIn {
+  from { opacity: 0.3; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .empty {
@@ -1453,7 +1542,6 @@ body {
   box-shadow: 0 10px 24px rgba(200, 82, 26, 0.18), 0 2px 6px rgba(33, 29, 26, 0.08);
   border: 1px solid var(--line);
   margin-bottom: 12px;
-  animation: splashPulse 2.2s ease-in-out infinite alternate;
 }
 .splash-logo {
   width: 100%;
@@ -1493,12 +1581,10 @@ body {
   transform-origin: left;
   animation: splashProgress 1.4s var(--ease-spring) infinite;
 }
-@keyframes splashPulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
 @keyframes splashProgress { 0% { transform: translateX(-100%); } 50% { transform: translateX(0%); } 100% { transform: translateX(100%); } }
 
 .hidden-file { display: none; }
 
-/* Status Pill on Banner */
 .event-status-pill {
   display: inline-flex;
   align-items: center;
@@ -1511,7 +1597,6 @@ body {
   background: rgba(22, 18, 16, 0.42);
   color: #FAF6F0;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 5px rgba(0, 0, 0, 0.15);
 }
 .event-status-pill .status-dot {
   width: 6.5px;
@@ -1519,11 +1604,9 @@ body {
   border-radius: 50%;
   margin-right: 5px;
   background: #5EE699;
-  box-shadow: 0 0 6px rgba(94, 230, 153, 0.9);
 }
 .event-status-pill.staging .status-dot {
   background: #FFA494;
-  box-shadow: 0 0 6px rgba(255, 164, 148, 0.9);
 }
 
 .pack-thumb {
@@ -1542,19 +1625,23 @@ body {
   color: var(--timber-soft);
   cursor: pointer;
   position: relative;
-  transition: transform 0.12s ease;
+  transition: transform 0.15s var(--ease-spring);
 }
-.pack-thumb:active {
-  transform: scale(0.92);
-}
+.pack-thumb:active { transform: scale(0.92); }
 .pack-thumb .icon { width: 17px; height: 17px; }
 
 .tab-pane-enter {
-  animation: tabPaneRise 0.22s var(--ease-out);
+  -webkit-animation: tabPaneRise 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: tabPaneRise 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+@-webkit-keyframes tabPaneRise {
+  from { opacity: 0; -webkit-transform: translate3d(0, 8px, 0); transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 @keyframes tabPaneRise {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; -webkit-transform: translate3d(0, 8px, 0); transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 
 .seg-animated {
@@ -1572,16 +1659,12 @@ body {
   box-shadow: 0 1px 4px rgba(33, 29, 26, 0.1), 0 0 0 1px rgba(33, 29, 26, 0.03);
   z-index: 1;
   pointer-events: none;
-  transition: transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
-              width 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
-  will-change: transform, width;
 }
 .seg-animated button {
   position: relative;
   z-index: 2;
   background: transparent !important;
   box-shadow: none !important;
-  transition: color 0.18s ease;
 }
 .seg-animated button.on {
   color: var(--inasal-orange) !important;
@@ -1601,13 +1684,9 @@ body {
 .pack-item-clickable {
   cursor: pointer;
   touch-action: manipulation;
-  transition: opacity 0.15s ease;
 }
-.pack-item-clickable:active { opacity: 0.65; }
 
-/* ==========================================================================
-   High-Resolution Lightbox Modal Styles
-   ========================================================================== */
+/* Lightbox Modal */
 .lightbox {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -1631,8 +1710,6 @@ body {
   top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   background: rgba(18, 14, 12, 0.94);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
 }
 .lightbox-dialog {
   position: relative;
@@ -1642,16 +1719,11 @@ body {
   max-height: 88vh;
   background: var(--pandan-cream);
   border-radius: var(--r-lg);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  transform: scale(0.96);
-  transition: transform 0.24s var(--ease-spring);
-}
-.lightbox.open .lightbox-dialog {
-  transform: scale(1);
 }
 .lightbox-top {
   padding: 10px 12px;
@@ -1687,12 +1759,9 @@ body {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  touch-action: manipulation;
-  transition: transform 0.12s ease;
+  transition: transform 0.14s var(--ease-spring);
 }
-.lightbox-close-btn:active {
-  transform: scale(0.9);
-}
+.lightbox-close-btn:active { transform: scale(0.90); }
 .lightbox-body {
   position: relative;
   padding: 10px;
@@ -1718,7 +1787,6 @@ body {
   max-height: 56vh;
   object-fit: contain;
   border-radius: var(--r-sm);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   display: none;
 }
 .lightbox-foot {
@@ -1731,14 +1799,12 @@ body {
   flex-shrink: 0;
 }
 
-/* Live Post-Lock Van Editing States & Banner */
 .live-edit-banner {
   background: var(--gold-tint);
   border: 1px solid rgba(212, 155, 66, 0.4);
   border-radius: var(--r-md);
   padding: 10px 12px;
   margin-bottom: 12px;
-  box-shadow: var(--shadow-xs);
 }
 .live-edit-banner h4 {
   font-size: 13px;
@@ -1760,7 +1826,8 @@ body {
 }
 
 /* ==========================================================================
-   Icon-Based View Mode Switcher (Cards / Compact / Grid)
+   View Mode Switcher: Animated "Magic Pill" Background Glider
+   - Fixed width container: Completely prevents top-bar layout shift
    ========================================================================== */
 .view-mode-bar {
   display: flex;
@@ -1769,43 +1836,153 @@ body {
   margin-bottom: 8px;
 }
 .view-mode-pills {
+  position: relative;
   display: inline-flex;
+  align-items: center;
   background: var(--sand-soft);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
   padding: 2px;
+  overflow: hidden;
+  width: 104px;
+  min-width: 104px;
+  height: 32px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
-.view-mode-btn {
+.view-mode-glider {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
   width: 32px;
-  height: 28px;
+  background: var(--sand-card);
+  border-radius: var(--r-pill);
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.12), 0 0 0 1px rgba(33, 29, 26, 0.04);
+  z-index: 1;
+  pointer-events: none;
+  -webkit-transform: translate3d(2px, 0, 0);
+  transform: translate3d(2px, 0, 0);
+  -webkit-transition: -webkit-transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1);
+  transition: transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1);
+  will-change: transform, width;
+}
+
+/* Fallback pure-CSS positioning when JS is initialising */
+.view-mode-pills[data-mode="cards"] .view-mode-glider {
+  -webkit-transform: translate3d(2px, 0, 0);
+  transform: translate3d(2px, 0, 0);
+}
+.view-mode-pills[data-mode="compact"] .view-mode-glider {
+  -webkit-transform: translate3d(34px, 0, 0);
+  transform: translate3d(34px, 0, 0);
+}
+.view-mode-pills[data-mode="grid"] .view-mode-glider {
+  -webkit-transform: translate3d(66px, 0, 0);
+  transform: translate3d(66px, 0, 0);
+}
+
+.view-mode-btn {
+  position: relative;
+  z-index: 2;
+  width: 32px;
+  height: 26px;
   padding: 0;
   border-radius: var(--r-pill);
   border: none;
-  background: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
   color: var(--timber-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   touch-action: manipulation;
-  transition: all 0.16s var(--ease-out);
+  transition: color 0.18s ease, transform 0.14s var(--ease-spring);
+}
+.view-mode-btn:active {
+  transform: scale(0.90);
+}
+.view-mode-btn.on {
+  color: var(--inasal-orange) !important;
+  font-weight: 700;
 }
 .view-mode-btn .icon {
   width: 15px;
   height: 15px;
   margin: 0;
 }
-.view-mode-btn.on {
-  background: var(--sand-card);
-  color: var(--inasal-orange);
-  box-shadow: var(--shadow-xs);
+
+/* View Content Smooth Fade-In on Switch (Zero scale blur on iPhone 5s) */
+.view-content-enter {
+  -webkit-animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
 }
-.view-mode-btn:active {
-  transform: scale(0.92);
+@-webkit-keyframes viewModeFadeIn {
+  from { opacity: 0; -webkit-transform: translate3d(0, 6px, 0); transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+}
+@keyframes viewModeFadeIn {
+  from { opacity: 0; -webkit-transform: translate3d(0, 6px, 0); transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 
 /* ==========================================================================
-   Collapsible Category Accordions
+   Dedicated Grid Density Toolbar (Placed inside Grid View without top-shift)
+   ========================================================================== */
+.grid-density-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  margin-bottom: 9px;
+  box-shadow: var(--shadow-xs);
+}
+.grid-density-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--timber-soft);
+  letter-spacing: -0.01em;
+}
+.grid-col-pills {
+  display: inline-flex;
+  background: var(--sand-card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 2px;
+}
+.grid-col-btn {
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  border: none;
+  background: transparent;
+  color: var(--timber-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.14s var(--ease-spring), background-color 0.15s ease, color 0.15s ease;
+}
+.grid-col-btn:active {
+  transform: scale(0.90);
+}
+.grid-col-btn.on {
+  background: linear-gradient(160deg, #D15E23, var(--inasal-orange));
+  color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(200, 82, 26, 0.35);
+}
+
+/* ==========================================================================
+   Category Accordions & Per-Category Pagination
    ========================================================================== */
 .cat-accordion {
   background: var(--sand-card);
@@ -1826,10 +2003,7 @@ body {
   cursor: pointer;
   touch-action: manipulation;
   border-bottom: 1px solid transparent;
-  transition: background-color 0.15s ease;
-}
-.cat-accordion-head:active {
-  background: var(--sand-soft);
+  transition: background-color 0.16s ease;
 }
 .cat-accordion.open .cat-accordion-head {
   border-bottom-color: var(--line);
@@ -1871,9 +2045,18 @@ body {
 }
 .cat-accordion.open .cat-accordion-body {
   display: block;
+  -webkit-animation: accordionOpen 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: accordionOpen 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@-webkit-keyframes accordionOpen {
+  from { opacity: 0; -webkit-transform: translate3d(0, -5px, 0); transform: translate3d(0, -5px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+}
+@keyframes accordionOpen {
+  from { opacity: 0; -webkit-transform: translate3d(0, -5px, 0); transform: translate3d(0, -5px, 0); }
+  to { opacity: 1; -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
 }
 
-/* Compact List Row (Load-Out, Pack-Down & Shelf) */
 .compact-item-row {
   display: flex;
   align-items: center;
@@ -1898,12 +2081,14 @@ body {
   min-width: 0;
   margin-right: 8px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .compact-item-name {
   font-size: 13px;
   font-weight: 700;
   color: var(--timber-ink);
   line-height: 1.22;
+  word-break: break-word;
 }
 .compact-item-meta {
   display: flex;
@@ -1912,9 +2097,52 @@ body {
   flex-wrap: wrap;
 }
 
-/* ==========================================================================
-   Shopee-Style Swipe to Delete List Row
-   ========================================================================== */
+/* Per-Category Pagination Bar inside Collapsible Accordion */
+.cat-acc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 4px 4px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+.cat-page-btn {
+  width: auto;
+  min-width: 58px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--sand-card);
+  border: 1px solid var(--line-strong);
+  color: var(--timber-ink);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.14s var(--ease-spring), background-color 0.12s ease;
+}
+.cat-page-btn:not([disabled]):active {
+  transform: scale(0.92);
+  background: var(--sand-soft);
+}
+.cat-page-btn[disabled] {
+  opacity: 0.32;
+  pointer-events: none;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.cat-page-info {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--timber-soft);
+  letter-spacing: -0.01em;
+}
+
+/* Swipe to Delete List Row */
 .swipe-row-outer {
   position: relative;
   overflow: hidden;
@@ -1971,35 +2199,128 @@ body {
 }
 
 /* ==========================================================================
-   E-Commerce Grid View (3 Columns on iPhone 5s)
+   Responsive E-Commerce Grid: 2, 3, or 4 Columns per Row (iPhone 5s Optimized)
    ========================================================================== */
 .ecommerce-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
   margin-bottom: 12px;
 }
+
+/* 2 Columns (Standard Grid) */
+.ecommerce-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.ecommerce-grid.cols-2 .grid-item-card {
+  min-height: 165px;
+  padding: 8px;
+}
+.ecommerce-grid.cols-2 .grid-thumb-box {
+  height: 96px;
+  flex: 0 0 96px;
+  margin-bottom: 6px;
+}
+.ecommerce-grid.cols-2 .grid-thumb-box .icon {
+  width: 28px;
+  height: 28px;
+}
+.ecommerce-grid.cols-2 .grid-qty-badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+}
+.ecommerce-grid.cols-2 .grid-title {
+  font-size: 12px;
+  min-height: 30px;
+  line-height: 1.25;
+}
+.ecommerce-grid.cols-2 .grid-staged-pill {
+  font-size: 10.5px;
+  padding: 3px 6px;
+}
+
+/* 3 Columns (Compact Density) */
+.ecommerce-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.ecommerce-grid.cols-3 .grid-item-card {
+  min-height: 140px;
+  padding: 6px 5px;
+}
+.ecommerce-grid.cols-3 .grid-thumb-box {
+  height: 66px;
+  flex: 0 0 66px;
+  margin-bottom: 4px;
+}
+.ecommerce-grid.cols-3 .grid-thumb-box .icon {
+  width: 22px;
+  height: 22px;
+}
+.ecommerce-grid.cols-3 .grid-qty-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+.ecommerce-grid.cols-3 .grid-title {
+  font-size: 10.5px;
+  min-height: 26px;
+  line-height: 1.2;
+}
+.ecommerce-grid.cols-3 .grid-staged-pill {
+  font-size: 9px;
+  padding: 2px 4px;
+}
+
+/* 4 Columns (Micro Density) */
+.ecommerce-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.ecommerce-grid.cols-4 .grid-item-card {
+  min-height: 120px;
+  padding: 4px;
+}
+.ecommerce-grid.cols-4 .grid-thumb-box {
+  height: 50px;
+  flex: 0 0 50px;
+  margin-bottom: 3px;
+  border-radius: 6px;
+}
+.ecommerce-grid.cols-4 .grid-thumb-box .icon {
+  width: 18px;
+  height: 18px;
+}
+.ecommerce-grid.cols-4 .grid-qty-badge {
+  font-size: 8.5px;
+  padding: 1px 4px;
+}
+.ecommerce-grid.cols-4 .grid-title {
+  font-size: 9px;
+  min-height: 22px;
+  line-height: 1.15;
+}
+.ecommerce-grid.cols-4 .grid-staged-pill {
+  font-size: 8px;
+  padding: 1px 2px;
+}
+
 .grid-item-card {
   background: var(--sand-card);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: 7px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  justify-content: space-between;
   cursor: pointer;
   touch-action: manipulation;
   box-shadow: var(--shadow-xs);
   position: relative;
-  transition: transform 0.14s var(--ease-out), box-shadow 0.14s ease;
+  transition: transform 0.15s var(--ease-spring);
 }
 .grid-item-card:active {
   transform: scale(0.95);
 }
 .grid-thumb-box {
   width: 100%;
-  aspect-ratio: 1 / 1;
   border-radius: 8px;
   background-size: cover;
   background-position: center;
@@ -2009,51 +2330,37 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--timber-soft);
-  margin-bottom: 6px;
   position: relative;
   overflow: hidden;
 }
-.grid-thumb-box .icon {
-  width: 24px;
-  height: 24px;
-}
 .grid-qty-badge {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 3px;
+  right: 3px;
   background: rgba(33, 29, 26, 0.88);
   color: #FAF6F0;
-  font-size: 10px;
   font-weight: 700;
-  padding: 1px 6px;
   border-radius: var(--r-pill);
 }
 .grid-title {
-  font-size: 11.5px;
   font-weight: 700;
   color: var(--timber-ink);
-  line-height: 1.2;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   max-width: 100%;
+  word-break: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.grid-brand {
-  font-size: 9.5px;
-  color: var(--timber-soft);
-}
 .grid-staged-pill {
-  margin-top: 5px;
+  margin-top: 3px;
   background: var(--inasal-soft);
   color: var(--inasal-dark);
   border: 1px solid rgba(200, 82, 26, 0.28);
   border-radius: var(--r-pill);
-  font-size: 10.5px;
   font-weight: 700;
-  padding: 2px 6px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -2076,9 +2383,34 @@ body {
   border-color: rgba(212, 155, 66, 0.36);
 }
 
-/* ==========================================================================
-   Add-To-Van / Quantity Stepper Pop-up Modal with MAX Button
-   ========================================================================== */
+/* Kit Preset Header Selector (Non-truncating 2-line layout) */
+.kit-header-btn {
+  flex: 1.25;
+  min-width: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.18;
+  text-align: left;
+  height: auto;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+.kit-header-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.18;
+  word-break: break-word;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .quick-qty-modal {
   padding: 4px 2px;
 }
@@ -2094,7 +2426,7 @@ body {
   touch-action: manipulation;
   box-shadow: 0 1px 4px rgba(184, 126, 40, 0.35);
   margin-left: 6px;
-  transition: transform 0.12s ease;
+  transition: transform 0.15s var(--ease-spring);
 }
 .btn-max:active {
   transform: scale(0.92);
@@ -2117,9 +2449,8 @@ body {
   color: var(--timber-ink);
   cursor: pointer;
   touch-action: manipulation;
-  transition: all 0.14s ease;
+  transition: transform 0.14s var(--ease-spring);
 }
 .quick-qty-pills button:active {
-  background: var(--sand-soft);
-  transform: scale(0.94);
+  transform: scale(0.88);
 }

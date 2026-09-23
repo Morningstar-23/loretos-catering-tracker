@@ -13,12 +13,12 @@ dependencies, and zero network requests once the service worker has cached it.
 
 You said the stack was a suggestion, so here's what changed and why:
 
-| Suggested | Shipped | Reason |
-|---|---|---|
-| Tailwind CSS | One hand-written `app.css` (~11 KB) | Tailwind needs a build to stay small, and its defaults use `gap` in flexbox, which **iOS 12 does not support** in flex containers. Hand-written CSS lets every rule be checked against Safari 12. |
-| Vite + `@vitejs/plugin-legacy` | No build at all | The legacy plugin ships two bundles plus a polyfill chunk — more bytes and more parse time on an A7 chip. Plain ES5-safe scripts load and run immediately. |
-| Preact | Vanilla JS, string templates | Nothing here needs a virtual DOM. Hot paths (the +/− counters) patch two text nodes directly instead of re-rendering. |
-| `idb-keyval` | 40-line IndexedDB wrapper in `js/db.js` | One less dependency to cache and version. |
+| Suggested                      | Shipped                                 | Reason                                                                                                                                                                                            |
+| ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tailwind CSS                   | One hand-written `app.css` (~11 KB)     | Tailwind needs a build to stay small, and its defaults use `gap` in flexbox, which **iOS 12 does not support** in flex containers. Hand-written CSS lets every rule be checked against Safari 12. |
+| Vite + `@vitejs/plugin-legacy` | No build at all                         | The legacy plugin ships two bundles plus a polyfill chunk — more bytes and more parse time on an A7 chip. Plain ES5-safe scripts load and run immediately.                                        |
+| Preact                         | Vanilla JS, string templates            | Nothing here needs a virtual DOM. Hot paths (the +/− counters) patch two text nodes directly instead of re-rendering.                                                                             |
+| `idb-keyval`                   | 40-line IndexedDB wrapper in `js/db.js` | One less dependency to cache and version.                                                                                                                                                         |
 
 Everything else is as you specified: localStorage for data, IndexedDB for
 photos, JSON export/import, service worker, web app manifest, 44 px touch
@@ -77,13 +77,13 @@ Open `http://localhost:8080`. To test on the phone, use your laptop's LAN IP
 
 ## Put it on your dad's phone
 
-1. Host the folder anywhere with HTTPS — GitHub Pages, Netlify drop,
-   Cloudflare Pages. It is static files only, so drag-and-drop works.
-   (iOS only registers a service worker over HTTPS or on `localhost`.)
+1. Host the folder anywhere with HTTPS — GitHub Pages, Netlify drop, Cloudflare
+   Pages. It is static files only, so drag-and-drop works. (iOS only registers a
+   service worker over HTTPS or on `localhost`.)
 2. Open the URL in **Safari** on the 5s.
 3. Share button → **Add to Home Screen**.
-4. Open it from the home screen once while online so the shell caches.
-   After that it runs in airplane mode.
+4. Open it from the home screen once while online so the shell caches. After
+   that it runs in airplane mode.
 
 Chrome and Firefox on iOS can't install web apps. It has to be Safari.
 
@@ -95,15 +95,15 @@ Chrome and Firefox on iOS can't install web apps. It has to be Safari.
 2. Adjust the counts as the van loads, then **Van is loaded — lock it in**.
    Counts freeze at that point.
 3. At pack-down: **Pack down** tab, one row per kind of gear, big +/− and an
-   **All back** button. The row turns green when it's complete, terracotta
-   while it's short. The bar at the top shows the whole van at a glance.
+   **All back** button. The row turns green when it's complete, terracotta while
+   it's short. The bar at the top shows the whole van at a glance.
 4. **Not ours** tab: flag anything foreign before driving off.
-5. **Finish this event** → summary with the missing list, an optional
-   "write it off the shelf" checkbox, and an offer to save the load-out
-   as a preset. It lands in History with a recovery percentage.
+5. **Finish this event** → summary with the missing list, an optional "write it
+   off the shelf" checkbox, and an offer to save the load-out as a preset. It
+   lands in History with a recovery percentage.
 
-Only one event runs at a time — that's deliberate, it keeps the pack-down
-screen unambiguous at 11pm.
+Only one event runs at a time — that's deliberate, it keeps the pack-down screen
+unambiguous at 11pm.
 
 ---
 
@@ -119,15 +119,15 @@ screen unambiguous at 11pm.
 A 4 MB iPhone photo lands at roughly 55–70 KB. Lists only ever load the
 thumbnails, and they load after paint so scrolling never blocks.
 
-`tools/compress-images.mjs` is the optional desktop version for seeding a
-whole folder at once (`npm install sharp`, then run it).
+`tools/compress-images.mjs` is the optional desktop version for seeding a whole
+folder at once (`npm install sharp`, then run it).
 
 ## Backups
 
-Setup → Export produces one JSON file containing the data *and* the photos.
-iOS 12 Safari ignores `<a download>`, so the export sheet also shows the raw
-text with a select-all button — paste it into Notes, Mail or Files. Restore
-accepts either a file or pasted text.
+Setup → Export produces one JSON file containing the data _and_ the photos. iOS
+12 Safari ignores `<a download>`, so the export sheet also shows the raw text
+with a select-all button — paste it into Notes, Mail or Files. Restore accepts
+either a file or pasted text.
 
 ---
 
@@ -144,14 +144,15 @@ oldest years from History.
 ## Changing the brand
 
 Every colour is a custom property at the top of `css/app.css`. The tape and
-stamp chip styles are `.tag` and `.tag-stamp` — that's the one loud element
-in the design, everything else stays quiet on purpose.
+stamp chip styles are `.tag` and `.tag-stamp` — that's the one loud element in
+the design, everything else stays quiet on purpose.
 
 ```
 loretos-catering-tracker
 ├─ css
 │  └─ app.css
 ├─ icons
+│  ├─ apple-splash-640x1136.png
 │  ├─ icon-180.png
 │  ├─ icon-192.png
 │  ├─ icon-512-maskable.png
@@ -164,7 +165,11 @@ loretos-catering-tracker
 │  ├─ store.js
 │  ├─ ui.js
 │  └─ views
-│     ├─ catering.js
+│     ├─ catering
+│     │  ├─ catering-kits.js
+│     │  ├─ catering-modals.js
+│     │  ├─ catering-views.js
+│     │  └─ catering.js
 │     ├─ dashboard.js
 │     ├─ history.js
 │     ├─ inventory.js
@@ -174,5 +179,4 @@ loretos-catering-tracker
 ├─ sw.js
 └─ tools
    └─ compress-images.mjs
-
 ```

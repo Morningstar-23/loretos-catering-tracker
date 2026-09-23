@@ -1,8 +1,10 @@
 /* ==========================================================================
    Loreto's Catering Tracker — UI Utilities & Component Helpers (js/ui.js)
    - Optimized for iPhone 5s (320px viewport) & iOS 12 Mobile Safari
-   - Reusable Component Helpers: viewModeToggle & paginationBar
-   - Icon Set: viewCards, viewList, viewGrid, coffee, package, grid, etc.
+   - Reusable Component Helpers: viewModeToggle (with Magic Pill Glider),
+     gridDensityBar (zero layout-shift), topPaginationBar & catAccordionPagination
+   - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
+   - Auto-clearing navigation stack hook on closeSheet (fixes ghost Back buttons)
    - High-Res Image Lightbox Modal with instant tap & swipe dismiss
    - True Modal Isolation (#sheet-foot completely outside #sheet-body)
    - Interactive Swipe-Down-To-Dismiss (Blocks browser pull-to-refresh)
@@ -132,26 +134,97 @@ App.UI = (function () {
   }
 
   /* ==========================================================================
-     Reusable UI Component: View Mode Toggle (Cards / Compact / Grid)
+     Reusable UI Component: View Mode Toggle (Animated Magic Pill Glider)
+     - Fixed 104px width: completely eliminates top-bar layout shift
      ========================================================================== */
   function viewModeToggle(currentMode, actName) {
     var act = actName || 'set-view-mode';
     var mode = currentMode || 'cards';
-    return '<div class="view-mode-pills">' +
+    var gliderX = (mode === 'grid') ? 66 : (mode === 'compact' ? 34 : 2);
+
+    return '<div class="view-mode-pills view-mode-animated" data-mode="' + esc(mode) + '">' +
+      '<div class="view-mode-glider" style="transform:translate3d(' + gliderX + 'px, 0, 0);width:32px"></div>' +
       '<button type="button" class="view-mode-btn' + (mode === 'cards' ? ' on' : '') + '" data-act="' + act + '" data-mode="cards" aria-label="Standard card view" title="Standard Cards">' +
         icon('viewCards') +
       '</button>' +
       '<button type="button" class="view-mode-btn' + (mode === 'compact' ? ' on' : '') + '" data-act="' + act + '" data-mode="compact" aria-label="Compact accordion list view" title="Compact List">' +
         icon('viewList') +
       '</button>' +
-      '<button type="button" class="view-mode-btn' + (mode === 'grid' ? ' on' : '') + '" data-act="' + act + '" data-mode="grid" aria-label="3-column grid view" title="Grid View">' +
+      '<button type="button" class="view-mode-btn' + (mode === 'grid' ? ' on' : '') + '" data-act="' + act + '" data-mode="grid" aria-label="Grid view" title="Grid View">' +
         icon('viewGrid') +
       '</button>' +
     '</div>';
   }
 
   /* ==========================================================================
-     Reusable UI Component: Pagination & Page-Size Bar
+     Reusable UI Component: Dedicated Grid Density Bar
+     - Sits directly above Grid items; never causes header layout shift
+     ========================================================================== */
+  function gridDensityBar(gridCols, colActName) {
+    var cols = parseInt(gridCols, 10) || 2;
+    var cAct = colActName || 'set-grid-cols';
+
+    return '<div class="grid-density-bar">' +
+      '<span class="grid-density-label">Grid density:</span>' +
+      '<div class="grid-col-pills">' +
+        '<button type="button" class="grid-col-btn' + (cols === 2 ? ' on' : '') + '" data-act="' + cAct + '" data-cols="2">2 wide</button>' +
+        '<button type="button" class="grid-col-btn' + (cols === 3 ? ' on' : '') + '" data-act="' + cAct + '" data-cols="3">3 col</button>' +
+        '<button type="button" class="grid-col-btn' + (cols === 4 ? ' on' : '') + '" data-act="' + cAct + '" data-cols="4">4 dense</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ==========================================================================
+     Reusable UI Component: Top Compact Pagination Bar
+     ========================================================================== */
+  function topPaginationBar(opts) {
+    opts = opts || {};
+    var page = opts.page || 1;
+    var totalPages = opts.totalPages || 1;
+    var count = opts.count !== undefined ? opts.count : 0;
+    var prevAct = opts.prevAct || 'top-prev-page';
+    var nextAct = opts.nextAct || 'top-next-page';
+
+    if (totalPages <= 1) return '';
+
+    return '<div class="top-pagination-box">' +
+      '<button type="button" class="top-page-btn" data-act="' + prevAct + '"' + (page <= 1 ? ' disabled' : '') + '>' +
+        '&larr; Prev' +
+      '</button>' +
+      '<span class="top-page-info">Page <strong>' + page + '</strong> of ' + totalPages + ' <span class="muted">(' + count + ' items)</span></span>' +
+      '<button type="button" class="top-page-btn" data-act="' + nextAct + '"' + (page >= totalPages ? ' disabled' : '') + '>' +
+        'Next &rarr;' +
+      '</button>' +
+    '</div>';
+  }
+
+  /* ==========================================================================
+     Reusable UI Component: Per-Category Accordion Pagination Bar
+     ========================================================================== */
+  function catAccordionPagination(opts) {
+    opts = opts || {};
+    var page = opts.page || 1;
+    var totalPages = opts.totalPages || 1;
+    var totalItems = opts.totalItems || 0;
+    var catId = opts.catId || '';
+    var prevAct = opts.prevAct || 'cat-acc-prev-page';
+    var nextAct = opts.nextAct || 'cat-acc-next-page';
+
+    if (totalPages <= 1) return '';
+
+    return '<div class="cat-acc-pagination">' +
+      '<button type="button" class="cat-page-btn" data-act="' + prevAct + '" data-cat="' + esc(catId) + '"' + (page <= 1 ? ' disabled' : '') + '>' +
+        '&larr; Prev' +
+      '</button>' +
+      '<span class="cat-page-info">' + page + ' / ' + totalPages + ' <span class="muted">(' + totalItems + ' items)</span></span>' +
+      '<button type="button" class="cat-page-btn" data-act="' + nextAct + '" data-cat="' + esc(catId) + '"' + (page >= totalPages ? ' disabled' : '') + '>' +
+        'Next &rarr;' +
+      '</button>' +
+    '</div>';
+  }
+
+  /* ==========================================================================
+     Reusable UI Component: Bottom Pagination & Page-Size Bar
      ========================================================================== */
   function paginationBar(opts) {
     opts = opts || {};
@@ -207,8 +280,14 @@ App.UI = (function () {
     }
   }
 
-  function openSheet(title, contentHtml, handler) {
+  function isSheetOpen() {
+    return !!(sheetEl && sheetEl.classList.contains('open'));
+  }
+
+  /* Open Bottom Sheet with Directional Inter-Modal Page Slide Transitions */
+  function openSheet(title, contentHtml, handler, transitionDir) {
     boot();
+    var isAlreadyOpen = isSheetOpen();
     currentSheetHandler = handler || null;
 
     sheetTitleEl.textContent = title;
@@ -227,6 +306,21 @@ App.UI = (function () {
     } else if (sheetFootEl) {
       sheetFootEl.innerHTML = '';
       sheetFootEl.style.display = 'none';
+    }
+
+    /* Directional Inter-Modal Transition when Sheet is already mounted */
+    if (isAlreadyOpen && transitionDir !== 'none') {
+      var dirClass = (transitionDir === 'back') ? 'sheet-page-slide-back' : 'sheet-page-slide-forward';
+      sheetBodyEl.classList.remove('sheet-page-slide-forward', 'sheet-page-slide-back');
+      sheetTitleEl.classList.remove('sheet-title-fade');
+      void sheetBodyEl.offsetWidth; // Force synchronous reflow for reliable iOS animation replay
+      sheetBodyEl.classList.add(dirClass);
+      sheetTitleEl.classList.add('sheet-title-fade');
+      if (sheetFootEl && sheetFootEl.style.display !== 'none') {
+        sheetFootEl.classList.remove('sheet-page-slide-forward', 'sheet-page-slide-back');
+        void sheetFootEl.offsetWidth;
+        sheetFootEl.classList.add(dirClass);
+      }
     }
 
     sheetEl.className = 'sheet open';
@@ -250,6 +344,11 @@ App.UI = (function () {
     if (sheetFootEl) {
       sheetFootEl.innerHTML = '';
       sheetFootEl.style.display = 'none';
+    }
+
+    // Auto-clear catering navigation stack whenever sheet is dismissed
+    if (window.App && App.Views && App.Views.Catering && App.Views.Catering.Nav) {
+      App.Views.Catering.Nav.clear();
     }
   }
 
@@ -574,11 +673,15 @@ App.UI = (function () {
     confirm: confirm,
     openSheet: openSheet,
     closeSheet: closeSheet,
+    isSheetOpen: isSheetOpen,
     sheetHandler: function () { return currentSheetHandler; },
     hydrateThumbs: hydrateThumbs,
     openLightbox: openLightbox,
     closeLightbox: closeLightbox,
     viewModeToggle: viewModeToggle,
+    gridDensityBar: gridDensityBar,
+    topPaginationBar: topPaginationBar,
+    catAccordionPagination: catAccordionPagination,
     paginationBar: paginationBar
   };
 })();
