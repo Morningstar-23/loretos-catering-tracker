@@ -1,11 +1,12 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Inventory (js/views/inventory.js)
-   - Left-aligned header Add button (completely unblocks pagination)
+   - Reusable Icon View Switcher (Cards / Compact Accordion / 3-Col Grid)
+   - Reusable Pagination Bar with Page Size selector (5, 10, 15, 25 items)
    - Category scroll lock: exact scrollLeft position preserved without moving
-   - In-place DOM dropdown toggles: opening menus does NOT re-animate items list
-   - Dynamic "Reset filters" button that appears whenever filters are used
-   - Spring 3D animated sort direction toggle (Ascending / Descending)
-   - Pagination with Page Size selector (5, 10, 15, 25 items per page)
+   - In-place custom dropdowns (Stock & Sort) with spring animation
+   - 3D Spring sort direction toggle (Ascending / Descending)
+   - Dynamic "Reset filters" button
+   - Full Item Stats modal with gig usage trend chart & stock audit controls
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -13,6 +14,8 @@ App.Views = App.Views || {};
 App.Views.inventory = (function () {
   var U = App.UI, S = App.Store;
   var q = '', cat = '', sortField = 'alpha', sortDir = 'asc', stockFilter = 'all';
+  var viewMode = 'cards'; // 'cards' | 'compact' | 'grid'
+  var openAccordions = {}; // catId -> boolean
   var page = 1;
   var pageSize = 10;
   var totalPages = 1;
@@ -118,97 +121,10 @@ App.Views.inventory = (function () {
     '</div>';
   }
 
-  function render() {
-    ensureOthersCategory();
-    var cats = S.categories();
-
-    var dirLocked = (sortField === 'mod');
-    var sortBy = dirLocked ? 'mod-desc' : (sortField + '-' + sortDir);
-    var list = S.searchItems(q, cat, sortBy, stockFilter);
-
-    // Pagination calculations
-    totalPages = Math.ceil(list.length / pageSize) || 1;
-    if (page > totalPages) page = totalPages;
-    if (page < 1) page = 1;
-
-    var startIdx = (page - 1) * pageSize;
-    var endIdx = Math.min(startIdx + pageSize, list.length);
-    var paginatedItems = list.slice(startIdx, endIdx);
-
-    var catChips = '<button type="button" class="chip' + (cat ? '' : ' on') + '" data-act="cat" data-id="">All</button>' +
-      cats.map(function (c) {
-        return '<button type="button" class="chip' + (cat === c.id ? ' on' : '') + '" data-act="cat" data-id="' + c.id + '">' +
-          U.icon(c.icon || 'plate') + ' ' + U.esc(c.name) + '</button>';
-      }).join('') +
-      '<button type="button" class="chip" data-act="manage-cats">' + U.icon('settings') + ' Categories</button>';
-
-    var curStockObj = STOCK_OPTIONS.filter(function (o) { return o.id === stockFilter; })[0] || STOCK_OPTIONS[0];
-    var curSortObj = SORT_OPTIONS.filter(function (o) { return o.id === sortField; })[0] || SORT_OPTIONS[0];
-
-    var isFiltered = !!(q || cat || stockFilter !== 'all' || sortField !== 'alpha' || sortDir !== 'asc');
-
-    var resetBtnHtml = isFiltered ? (
-      '<button type="button" class="btn-reset-filters" data-act="reset-filters" aria-label="Reset all filters">' +
-        U.icon('refresh') + '<span>Reset filters</span>' +
-      '</button>'
-    ) : '';
-
-    var paginationHtml = (list.length > 0) ? (
-      '<div class="pagination-bar">' +
-        '<div class="pagination-nav">' +
-          '<button type="button" class="pagination-btn" data-act="inv-prev-page"' + (page === 1 ? ' disabled' : '') + '>' +
-            '&larr; Prev' +
-          '</button>' +
-          '<span class="pagination-info">Page ' + page + ' of ' + totalPages + '</span>' +
-          '<button type="button" class="pagination-btn" data-act="inv-next-page"' + (page === totalPages ? ' disabled' : '') + '>' +
-            'Next &rarr;' +
-          '</button>' +
-        '</div>' +
-        '<div class="pagination-size-wrap">' +
-          '<span class="pagination-size-label">Show per page:</span>' +
-          '<div class="pagination-size-pills">' +
-            [5, 10, 15, 25].map(function (sz) {
-              return '<button type="button" class="size-pill' + (pageSize === sz ? ' on' : '') + '" data-act="change-page-size" data-size="' + sz + '">' + sz + '</button>';
-            }).join('') +
-          '</div>' +
-        '</div>' +
-      '</div>'
-    ) : '';
-
-    return '<div class="search">' +
-        U.icon('search', 'search-icon') +
-        '<input class="input" id="inv-q" type="search" placeholder="Search gear, brand, or tag" value="' + U.esc(q) + '">' +
-      '</div>' +
-
-      '<div class="chips filter-bar">' + catChips + '</div>' +
-
-      '<div class="filter-row mb8">' +
-        renderCustomDropdown('stock', curStockObj.label, STOCK_OPTIONS, stockFilter) +
-        renderCustomDropdown('sort', curSortObj.label, SORT_OPTIONS, sortField) +
-        '<button type="button" class="btn btn-ghost sort-dir-btn' + (dirLocked ? ' disabled' : '') + '" data-act="toggle-sort-dir"' + (dirLocked ? ' disabled' : '') +
-          ' aria-label="' + (sortDir === 'desc' ? 'Sorted high to low \u2014 tap to reverse' : 'Sorted low to high \u2014 tap to reverse') + '">' +
-          U.icon('sortArrow', 'sort-dir-icon' + (sortDir === 'desc' && !dirLocked ? ' flipped' : '')) +
-        '</button>' +
-      '</div>' +
-
-      '<div class="row row-between mb8" style="padding:0 2px">' +
-        '<span class="muted" style="font-size:11px">' +
-          (list.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + list.length + ' items' : '0 items') +
-          (list.length !== S.items().length ? ' (filtered from ' + S.items().length + ')' : '') +
-        '</span>' +
-        resetBtnHtml +
-      '</div>' +
-
-      (paginatedItems.length
-        ? '<div class="list list-stagger">' + paginatedItems.map(row).join('') + '</div>' + paginationHtml
-        : U.empty('search', isFiltered ? 'No items match filter' : 'Inventory is empty',
-            isFiltered ? 'Try resetting filters or tap "All".' : 'Add your first trays, burners, or tables.',
-            isFiltered
-              ? '<button type="button" class="btn btn-primary btn-sm" data-act="reset-filters">' + U.icon('refresh', 'mr4') + ' Reset filters</button>'
-              : '<button type="button" class="btn btn-primary" data-act="add-item">' + U.icon('plus', 'mr4') + ' Add first item</button>'));
-  }
-
-  function row(i) {
+  /* ==========================================================================
+     View Mode Renderers (Cards / Compact / Grid)
+     ========================================================================== */
+  function cardRow(i) {
     var c = S.category(i.categoryId);
     var asOf = i.updatedAt ? U.fmtDate(i.updatedAt) : '';
     var catIcon = c ? (c.icon || 'plate') : 'plate';
@@ -245,10 +161,214 @@ App.Views.inventory = (function () {
       '</button>';
   }
 
+  function renderCompactView(items) {
+    var cats = S.categories();
+    var groups = {};
+    var uncat = [];
+
+    items.forEach(function (it) {
+      var cId = it.categoryId;
+      if (cId) {
+        if (!groups[cId]) groups[cId] = [];
+        groups[cId].push(it);
+      } else {
+        uncat.push(it);
+      }
+    });
+
+    var html = '';
+
+    cats.forEach(function (c) {
+      var cItems = groups[c.id];
+      if (!cItems || !cItems.length) return;
+
+      var isOpen = openAccordions[c.id] !== false;
+
+      var rowsHtml = cItems.map(function (it) {
+        var brandLabel = it.brand ? it.brand : (it.tagLabel || 'Loreto');
+        var threshold = it.lowStockThreshold || 2;
+        var curQty = it.qty || 0;
+        var qtyColor = curQty === 0 ? 'var(--alert)' : (curQty <= threshold ? 'var(--inasal-orange)' : 'var(--timber-ink)');
+
+        return '<div class="compact-item-row" data-act="open-stats" data-id="' + it.id + '">' +
+          '<div class="compact-item-info">' +
+            '<div class="compact-item-name truncate">' + U.esc(it.name) + '</div>' +
+            '<div class="compact-item-meta">' +
+              U.tag(brandLabel, it.tagColor) +
+              (it.isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right;flex-shrink:0">' +
+            '<span style="font-size:15px;font-weight:700;color:' + qtyColor + '">' + curQty + '</span>' +
+            '<span class="muted ml4" style="font-size:11px">' + U.esc(it.unit) + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      html += '<div class="cat-accordion ' + (isOpen ? 'open' : '') + '" id="inv-cat-acc-' + c.id + '">' +
+        '<button type="button" class="cat-accordion-head" data-act="toggle-inv-cat-acc" data-id="' + c.id + '">' +
+          '<span class="cat-accordion-title">' +
+            U.icon(c.icon || 'plate') +
+            '<span>' + U.esc(c.name) + '</span>' +
+            '<span class="cat-accordion-badge">' + cItems.length + '</span>' +
+          '</span>' +
+          U.icon('chevronDown', 'cat-accordion-chevron') +
+        '</button>' +
+        '<div class="cat-accordion-body">' + rowsHtml + '</div>' +
+      '</div>';
+    });
+
+    if (uncat.length) {
+      var isOpenUncat = openAccordions['uncat'] !== false;
+      var uncatRows = uncat.map(function (it) {
+        var curQty = it.qty || 0;
+        return '<div class="compact-item-row" data-act="open-stats" data-id="' + it.id + '">' +
+          '<div class="compact-item-info">' +
+            '<div class="compact-item-name truncate">' + U.esc(it.name) + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;flex-shrink:0">' +
+            '<span style="font-size:15px;font-weight:700">' + curQty + '</span>' +
+            '<span class="muted ml4" style="font-size:11px">' + U.esc(it.unit) + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      html += '<div class="cat-accordion ' + (isOpenUncat ? 'open' : '') + '" id="inv-cat-acc-uncat">' +
+        '<button type="button" class="cat-accordion-head" data-act="toggle-inv-cat-acc" data-id="uncat">' +
+          '<span class="cat-accordion-title"><span>Uncategorised</span><span class="cat-accordion-badge">' + uncat.length + '</span></span>' +
+          U.icon('chevronDown', 'cat-accordion-chevron') +
+        '</button>' +
+        '<div class="cat-accordion-body">' + uncatRows + '</div>' +
+      '</div>';
+    }
+
+    return html;
+  }
+
+  function renderGridView(items) {
+    var tiles = items.map(function (it) {
+      var photoKey = it.photoId ? (it.photoId + '-t') : '';
+      var cat = S.category(it.categoryId);
+      var brandLabel = it.brand ? it.brand : (it.tagLabel || '');
+      var threshold = it.lowStockThreshold || 2;
+      var curQty = it.qty || 0;
+
+      var pillHtml = '';
+      if (curQty === 0) {
+        pillHtml = '<div class="grid-staged-pill short truncate">Out of stock</div>';
+      } else if (curQty <= threshold) {
+        pillHtml = '<div class="grid-staged-pill supply truncate">Low (' + curQty + ')</div>';
+      } else {
+        pillHtml = '<div class="grid-staged-pill done truncate">' + curQty + ' in stock</div>';
+      }
+
+      return '<div class="grid-item-card" data-act="open-stats" data-id="' + it.id + '">' +
+        '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
+          (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+          '<span class="grid-qty-badge">' + curQty + ' ' + U.esc(it.unit) + '</span>' +
+        '</div>' +
+        '<div class="grid-title">' + U.esc(it.name) + '</div>' +
+        (brandLabel ? '<div class="grid-brand truncate">' + U.esc(brandLabel) + '</div>' : '') +
+        pillHtml +
+      '</div>';
+    }).join('');
+
+    return '<div class="ecommerce-grid">' + tiles + '</div>';
+  }
+
+  function render() {
+    ensureOthersCategory();
+    var cats = S.categories();
+
+    var dirLocked = (sortField === 'mod');
+    var sortBy = dirLocked ? 'mod-desc' : (sortField + '-' + sortDir);
+    var list = S.searchItems(q, cat, sortBy, stockFilter);
+
+    // Pagination calculations
+    totalPages = Math.ceil(list.length / pageSize) || 1;
+    if (page > totalPages) page = totalPages;
+    if (page < 1) page = 1;
+
+    var startIdx = (page - 1) * pageSize;
+    var endIdx = Math.min(startIdx + pageSize, list.length);
+    var paginatedItems = list.slice(startIdx, endIdx);
+
+    var catChips = '<button type="button" class="chip' + (cat ? '' : ' on') + '" data-act="cat" data-id="">All</button>' +
+      cats.map(function (c) {
+        return '<button type="button" class="chip' + (cat === c.id ? ' on' : '') + '" data-act="cat" data-id="' + c.id + '">' +
+          U.icon(c.icon || 'plate') + ' ' + U.esc(c.name) + '</button>';
+      }).join('') +
+      '<button type="button" class="chip" data-act="manage-cats">' + U.icon('settings') + ' Categories</button>';
+
+    var curStockObj = STOCK_OPTIONS.filter(function (o) { return o.id === stockFilter; })[0] || STOCK_OPTIONS[0];
+    var curSortObj = SORT_OPTIONS.filter(function (o) { return o.id === sortField; })[0] || SORT_OPTIONS[0];
+
+    var isFiltered = !!(q || cat || stockFilter !== 'all' || sortField !== 'alpha' || sortDir !== 'asc');
+
+    var resetBtnHtml = isFiltered ? (
+      '<button type="button" class="btn-reset-filters" data-act="reset-filters" aria-label="Reset all filters">' +
+        U.icon('refresh') + '<span>Reset</span>' +
+      '</button>'
+    ) : '';
+
+    var contentHtml = '';
+    if (!paginatedItems.length) {
+      contentHtml = U.empty('search', isFiltered ? 'No items match filter' : 'Inventory is empty',
+        isFiltered ? 'Try resetting filters or tap "All".' : 'Add your first trays, burners, or tables.',
+        isFiltered
+          ? '<button type="button" class="btn btn-primary btn-sm" data-act="reset-filters">' + U.icon('refresh', 'mr4') + ' Reset filters</button>'
+          : '<button type="button" class="btn btn-primary" data-act="add-item">' + U.icon('plus', 'mr4') + ' Add first item</button>');
+    } else if (viewMode === 'compact') {
+      contentHtml = renderCompactView(paginatedItems);
+    } else if (viewMode === 'grid') {
+      contentHtml = renderGridView(paginatedItems);
+    } else {
+      contentHtml = '<div class="list list-stagger">' + paginatedItems.map(cardRow).join('') + '</div>';
+    }
+
+    var paginationHtml = (list.length > 0) ? U.paginationBar({
+      page: page,
+      totalPages: totalPages,
+      pageSize: pageSize,
+      prevAct: 'inv-prev-page',
+      nextAct: 'inv-next-page',
+      sizeAct: 'change-page-size'
+    }) : '';
+
+    return '<div class="search">' +
+        U.icon('search', 'search-icon') +
+        '<input class="input" id="inv-q" type="search" placeholder="Search gear, brand, or tag" value="' + U.esc(q) + '">' +
+      '</div>' +
+
+      '<div class="chips filter-bar">' + catChips + '</div>' +
+
+      '<div class="filter-row mb8">' +
+        renderCustomDropdown('stock', curStockObj.label, STOCK_OPTIONS, stockFilter) +
+        renderCustomDropdown('sort', curSortObj.label, SORT_OPTIONS, sortField) +
+        '<button type="button" class="btn btn-ghost sort-dir-btn' + (dirLocked ? ' disabled' : '') + '" data-act="toggle-sort-dir"' + (dirLocked ? ' disabled' : '') +
+          ' aria-label="' + (sortDir === 'desc' ? 'Sorted high to low \u2014 tap to reverse' : 'Sorted low to high \u2014 tap to reverse') + '">' +
+          U.icon('sortArrow', 'sort-dir-icon' + (sortDir === 'desc' && !dirLocked ? ' flipped' : '')) +
+        '</button>' +
+      '</div>' +
+
+      '<div class="row row-between mb8" style="padding:0 2px">' +
+        '<div class="row">' +
+          '<span class="muted mr6" style="font-size:11px">' +
+            (list.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + list.length : '0 items') +
+          '</span>' +
+          resetBtnHtml +
+        '</div>' +
+        U.viewModeToggle(viewMode, 'set-inv-view-mode') +
+      '</div>' +
+
+      contentHtml +
+      paginationHtml;
+  }
+
   function mounted(root) {
     U.hydrateThumbs(root);
 
-    // Keep category scroll completely locked where user left it — no forced jump to center or left
+    // Keep category scroll completely locked where user left it
     var chipsEl = root.querySelector('.chips.filter-bar');
     if (chipsEl) {
       chipsEl.scrollLeft = chipsScrollLeft;
@@ -744,6 +864,20 @@ App.Views.inventory = (function () {
       page = 1;
       closeAllDropdowns();
       App.rerenderQuiet();
+    }
+    else if (act === 'set-inv-view-mode') {
+      viewMode = el.getAttribute('data-mode') || 'cards';
+      closeAllDropdowns();
+      App.rerenderQuiet();
+    }
+    else if (act === 'toggle-inv-cat-acc') {
+      var accId = el.getAttribute('data-id');
+      var accEl = document.getElementById('inv-cat-acc-' + accId);
+      if (accEl) {
+        var willOpen = !accEl.classList.contains('open');
+        openAccordions[accId] = willOpen;
+        accEl.classList.toggle('open', willOpen);
+      }
     }
     else if (act === 'toggle-dd') {
       var targetDd = el.getAttribute('data-dd');

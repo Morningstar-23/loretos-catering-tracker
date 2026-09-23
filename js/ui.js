@@ -1,10 +1,11 @@
 /* ==========================================================================
    Loreto's Catering Tracker — UI Utilities & Component Helpers (js/ui.js)
    - Optimized for iPhone 5s (320px viewport) & iOS 12 Mobile Safari
+   - Reusable Component Helpers: viewModeToggle & paginationBar
+   - Icon Set: viewCards, viewList, viewGrid, coffee, package, grid, etc.
+   - High-Res Image Lightbox Modal with instant tap & swipe dismiss
    - True Modal Isolation (#sheet-foot completely outside #sheet-body)
    - Interactive Swipe-Down-To-Dismiss (Blocks browser pull-to-refresh)
-   - Category icons: coffee, package, grid (Others), chevronDown, chevronLeft
-   - High-Res Image Lightbox Modal with instant tap & swipe dismiss
    ========================================================================== */
 window.App = window.App || {};
 
@@ -25,6 +26,9 @@ App.UI = (function () {
     coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
     package: '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
     grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+    viewCards: '<rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="18" height="7" rx="1.5"/>',
+    viewList: '<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>',
+    viewGrid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
     check: '<polyline points="20 6 9 17 4 12"/>',
     close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
     plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
@@ -125,6 +129,59 @@ App.UI = (function () {
     setTimeout(function () {
       container.className = '';
     }, 2400);
+  }
+
+  /* ==========================================================================
+     Reusable UI Component: View Mode Toggle (Cards / Compact / Grid)
+     ========================================================================== */
+  function viewModeToggle(currentMode, actName) {
+    var act = actName || 'set-view-mode';
+    var mode = currentMode || 'cards';
+    return '<div class="view-mode-pills">' +
+      '<button type="button" class="view-mode-btn' + (mode === 'cards' ? ' on' : '') + '" data-act="' + act + '" data-mode="cards" aria-label="Standard card view" title="Standard Cards">' +
+        icon('viewCards') +
+      '</button>' +
+      '<button type="button" class="view-mode-btn' + (mode === 'compact' ? ' on' : '') + '" data-act="' + act + '" data-mode="compact" aria-label="Compact accordion list view" title="Compact List">' +
+        icon('viewList') +
+      '</button>' +
+      '<button type="button" class="view-mode-btn' + (mode === 'grid' ? ' on' : '') + '" data-act="' + act + '" data-mode="grid" aria-label="3-column grid view" title="Grid View">' +
+        icon('viewGrid') +
+      '</button>' +
+    '</div>';
+  }
+
+  /* ==========================================================================
+     Reusable UI Component: Pagination & Page-Size Bar
+     ========================================================================== */
+  function paginationBar(opts) {
+    opts = opts || {};
+    var page = opts.page || 1;
+    var totalPages = opts.totalPages || 1;
+    var pageSize = opts.pageSize || 10;
+    var prevAct = opts.prevAct || 'prev-page';
+    var nextAct = opts.nextAct || 'next-page';
+    var sizeAct = opts.sizeAct || 'change-page-size';
+    var sizes = opts.sizes || [5, 10, 15, 25];
+
+    var sizePills = sizes.map(function (sz) {
+      return '<button type="button" class="size-pill' + (pageSize === sz ? ' on' : '') + '" data-act="' + sizeAct + '" data-size="' + sz + '">' + sz + '</button>';
+    }).join('');
+
+    return '<div class="pagination-bar">' +
+      '<div class="pagination-nav">' +
+        '<button type="button" class="pagination-btn" data-act="' + prevAct + '"' + (page <= 1 ? ' disabled' : '') + '>' +
+          '&larr; Prev' +
+        '</button>' +
+        '<span class="pagination-info">Page ' + page + ' of ' + totalPages + '</span>' +
+        '<button type="button" class="pagination-btn" data-act="' + nextAct + '"' + (page >= totalPages ? ' disabled' : '') + '>' +
+          'Next &rarr;' +
+        '</button>' +
+      '</div>' +
+      '<div class="pagination-size-wrap">' +
+        '<span class="pagination-size-label">Show per page:</span>' +
+        '<div class="pagination-size-pills">' + sizePills + '</div>' +
+      '</div>' +
+    '</div>';
   }
 
   function confirm(title, text, confirmLabel, onConfirm) {
@@ -520,6 +577,8 @@ App.UI = (function () {
     sheetHandler: function () { return currentSheetHandler; },
     hydrateThumbs: hydrateThumbs,
     openLightbox: openLightbox,
-    closeLightbox: closeLightbox
+    closeLightbox: closeLightbox,
+    viewModeToggle: viewModeToggle,
+    paginationBar: paginationBar
   };
 })();

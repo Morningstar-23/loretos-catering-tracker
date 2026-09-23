@@ -2,18 +2,11 @@
    Loreto's Catering Tracker — Stylesheet (css/app.css)
    - Native App Shell: Rigid viewport lock (Zero drag-to-reload / rubberband)
    - Topbar: Left-aligned title with right header action button & brand logo
-   - Filters & Chips: warm on-brand active state & scroll-position lock
-   - Animated Custom Dropdowns with spring popovers & checkmark states
-   - 3D spring sort direction toggle with tactile micro-animation
-   - Dynamic "Reset filters" badge button with smooth hover & active state
-   - Pagination with Page Size selector (5, 10, 15, 25 items per page)
-   - Dedicated Staff profile styling with photo upload
-   - Full-Screen High-Res Image Lightbox Modal with zoom & safe tap targets
-   - In-Transit Live Van Load-Out Editing Controls (Unlocks post-load adjustments)
-   - Multi-View Modes: Standard Cards, Compact Collapsible Accordions, 3-Col E-commerce Grid
-   - Shopee-style Swipe-to-Delete on list rows
-   - Quick Add-to-Van Modal with Stepper and MAX stock button
-   - iPhone 5s (320px) & iOS 12 Safari optimized (no modern flex gap regressions)
+   - Reusable Icon View-Mode Switcher: Cards, Compact List, 3-Col Grid
+   - Pack-Down & Shelf View Modes: Unified Compact Accordions & E-Commerce Grid
+   - Reusable Pagination Bar: Optimized for 320px iPhone 5s viewport
+   - Custom Dropdowns, 3D Spring Sort Toggle, Lightbox, and Modal Sheets
+   - Full iOS 12 Mobile Safari Compatibility (No flex-gap layout regressions)
    ========================================================================== */
 
 :root {
@@ -225,14 +218,9 @@ body {
 .list-stagger > *:nth-child(7)  { animation-delay: 0.13s; }
 .list-stagger > *:nth-child(8)  { animation-delay: 0.15s; }
 .list-stagger > *:nth-child(9)  { animation-delay: 0.17s; }
-.list-stagger > *:nth-child(10)  { animation-delay: 0.19s; }
+.list-stagger > *:nth-child(10) { animation-delay: 0.19s; }
 .list-stagger > *:nth-child(11) { animation-delay: 0.21s; }
 .list-stagger > *:nth-child(12) { animation-delay: 0.23s; }
-
-@keyframes rowRise {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 
 /* Bottom Tabbar with Elevated Hero Circle */
 #tabbar {
@@ -1123,7 +1111,7 @@ body {
   transform: scale(0.95);
 }
 
-/* Pagination Bar */
+/* Reusable Pagination Bar (iPhone 5s 320px Optimized) */
 .pagination-bar {
   display: flex;
   flex-direction: column;
@@ -1142,9 +1130,9 @@ body {
 
 .pagination-btn {
   width: auto;
-  min-width: 82px;
+  min-width: 76px;
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 700;
   border-radius: var(--r-pill);
@@ -1175,7 +1163,7 @@ body {
   font-weight: 700;
   color: var(--timber-soft);
   letter-spacing: -0.01em;
-  padding: 0 6px;
+  padding: 0 4px;
   white-space: nowrap;
 }
 
@@ -1479,7 +1467,7 @@ body {
   font-size: 24px;
   font-weight: 700;
   color: var(--inasal-orange);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
   margin-bottom: 4px;
 }
 .splash-subtitle {
@@ -1772,7 +1760,7 @@ body {
 }
 
 /* ==========================================================================
-   View Mode Switcher: Cards | Compact List | E-Commerce Grid
+   Icon-Based View Mode Switcher (Cards / Compact / Grid)
    ========================================================================== */
 .view-mode-bar {
   display: flex;
@@ -1788,28 +1776,32 @@ body {
   padding: 2px;
 }
 .view-mode-btn {
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-pill);
   border: none;
   background: transparent;
   color: var(--timber-soft);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  touch-action: manipulation;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
   transition: all 0.16s var(--ease-out);
 }
 .view-mode-btn .icon {
-  width: 13px;
-  height: 13px;
-  margin-right: 4px;
+  width: 15px;
+  height: 15px;
+  margin: 0;
 }
 .view-mode-btn.on {
   background: var(--sand-card);
   color: var(--inasal-orange);
   box-shadow: var(--shadow-xs);
+}
+.view-mode-btn:active {
+  transform: scale(0.92);
 }
 
 /* ==========================================================================
@@ -1875,13 +1867,13 @@ body {
 }
 .cat-accordion-body {
   display: none;
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 .cat-accordion.open .cat-accordion-body {
   display: block;
 }
 
-/* Compact Collapsible List Row */
+/* Compact List Row (Load-Out, Pack-Down & Shelf) */
 .compact-item-row {
   display: flex;
   align-items: center;
@@ -1891,6 +1883,15 @@ body {
 }
 .compact-item-row:last-child {
   border-bottom: none;
+}
+.compact-item-row.short {
+  border-left: 3px solid var(--alert);
+  padding-left: 8px;
+  background-color: #FFFAF9;
+}
+.compact-item-row.done {
+  border-left: 3px solid var(--success);
+  padding-left: 8px;
 }
 .compact-item-info {
   flex: 1 1 auto;
@@ -1902,7 +1903,7 @@ body {
   font-size: 13px;
   font-weight: 700;
   color: var(--timber-ink);
-  line-height: 1.2;
+  line-height: 1.22;
 }
 .compact-item-meta {
   display: flex;
@@ -2052,11 +2053,27 @@ body {
   border-radius: var(--r-pill);
   font-size: 10.5px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 2px 6px;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+}
+.grid-staged-pill.done {
+  background: var(--success-tint);
+  color: var(--success);
+  border-color: rgba(36, 90, 62, 0.3);
+}
+.grid-staged-pill.short {
+  background: var(--alert-tint);
+  color: var(--alert);
+  border-color: rgba(214, 57, 32, 0.32);
+}
+.grid-staged-pill.supply {
+  background: var(--gold-tint);
+  color: #8A6805;
+  border-color: rgba(212, 155, 66, 0.36);
 }
 
 /* ==========================================================================
