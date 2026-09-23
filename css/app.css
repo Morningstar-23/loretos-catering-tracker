@@ -1,6 +1,6 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Stylesheet (css/app.css)
-   - Depth: layered shadows instead of flat 1px borders
+   - Native App Shell: Rigid viewport lock (Zero drag-to-reload / rubberband)
    - Topbar: Left-aligned title with right header action button & brand logo
    - Filters & Chips: warm on-brand active state & scroll-position lock
    - Animated Custom Dropdowns with spring popovers & checkmark states
@@ -66,9 +66,18 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Rigid Native Viewport — Eliminates Browser Drag-To-Reload & Body Bouncing */
 html, body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
   background-color: var(--pandan-cream);
   color: var(--timber-ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -78,7 +87,6 @@ html, body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-text-size-adjust: 100%;
-  overflow-x: hidden;
 }
 
 body {
@@ -88,10 +96,7 @@ body {
   background-attachment: fixed;
 }
 
-/* ==========================================================================
-   Top Navigation Header (Brand Logo + Title + Right Action)
-   ========================================================================== */
-
+/* Top Navigation Header */
 #topbar {
   position: fixed;
   top: 0;
@@ -110,6 +115,7 @@ body {
   justify-content: space-between;
   z-index: 50;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 16px rgba(33, 29, 26, 0.045);
+  touch-action: none;
 }
 
 .topbar-brand {
@@ -184,6 +190,7 @@ body {
   box-shadow: 0 1px 4px rgba(200, 82, 26, 0.25);
 }
 
+/* Scroll Area strictly trapped inside #view */
 #view {
   position: absolute;
   top: calc(50px + var(--sat));
@@ -193,6 +200,8 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
   padding: 14px 12px 48px 12px;
 }
 
@@ -246,6 +255,7 @@ body {
   z-index: 50;
   box-shadow: 0 -6px 20px rgba(33, 29, 26, 0.06);
   overflow: visible;
+  touch-action: none;
 }
 
 .tab {
@@ -1273,12 +1283,14 @@ body {
   pointer-events: none;
   transition: opacity 0.24s ease;
   z-index: 100;
+  touch-action: none;
 }
 .backdrop.show {
   opacity: 1;
   pointer-events: auto;
 }
 
+/* Modal Bottom Sheet */
 .sheet {
   position: fixed;
   left: 0;
@@ -1299,10 +1311,11 @@ body {
 .sheet.open {
   transform: translateY(0);
 }
-/* Make the top handle zone a large, easy-to-swipe touch target */
+
+/* Grabbable handle zone for swipe-down-to-dismiss */
 .sheet-handle-zone {
   width: 100%;
-  padding: 8px 0 4px 0;
+  padding: 9px 0 4px 0;
   display: flex;
   justify-content: center;
   touch-action: none;
@@ -1316,6 +1329,7 @@ body {
   border-radius: 3px;
   pointer-events: none;
 }
+
 .sheet-head {
   padding: 4px 15px 11px 15px;
   display: flex;
@@ -1325,7 +1339,7 @@ body {
   background: var(--pandan-cream);
   flex-shrink: 0;
   z-index: 2;
-  touch-action: none; /* Prevents Safari pull-to-refresh on header swipe */
+  touch-action: none;
 }
 .sheet-title {
   font-family: "Iowan Old Style", Georgia, serif;
@@ -1359,6 +1373,8 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   background: var(--pandan-cream);
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
 }
 
 .sheet-foot {
@@ -1369,6 +1385,7 @@ body {
   padding: 11px 15px calc(11px + var(--sab)) 15px;
   z-index: 20;
   box-shadow: 0 -6px 18px rgba(33, 29, 26, 0.07);
+  touch-action: none;
 }
 
 .empty {
@@ -1423,10 +1440,7 @@ body {
   transform: translateX(-50%) translateY(0) scale(1);
 }
 
-/* ==========================================================================
-   Animated Brand Splash Screen
-   ========================================================================== */
-
+/* Animated Brand Splash Screen */
 #splash {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -1441,6 +1455,7 @@ body {
   justify-content: center;
   z-index: 999;
   transition: opacity 0.38s ease, transform 0.38s ease;
+  touch-action: none;
 }
 
 #splash.gone {
@@ -1531,11 +1546,7 @@ body {
 
 .hidden-file { display: none; }
 
-/* ==========================================================================
-   Catering View Enhancements (Event Status Pill, Thumbs & Tab Transitions)
-   ========================================================================== */
-
-/* High-end Glowing Status Pill on Banner */
+/* Status Pill on Banner */
 .event-status-pill {
   display: inline-flex;
   align-items: center;
@@ -1565,7 +1576,6 @@ body {
   box-shadow: 0 0 6px rgba(255, 164, 148, 0.9);
 }
 
-/* Compact Thumbnail for Catering Rows (fits 320px screen) */
 .pack-thumb {
   width: 38px;
   height: 38px;
@@ -1586,7 +1596,6 @@ body {
   height: 17px;
 }
 
-/* Tab Pane Transition Animation */
 .tab-pane-enter {
   animation: tabPaneRise 0.22s var(--ease-out);
 }
@@ -1601,10 +1610,6 @@ body {
     transform: translateY(0);
   }
 }
-
-/* ==========================================================================
-   Fluid Sliding Glider for Segmented Tabs (iPhone 5s / iOS 12 60fps)
-   ========================================================================== */
 
 .seg-animated {
   position: relative;
@@ -1622,13 +1627,11 @@ body {
   box-shadow: 0 1px 4px rgba(33, 29, 26, 0.1), 0 0 0 1px rgba(33, 29, 26, 0.03);
   z-index: 1;
   pointer-events: none;
-  /* Fluid liquid spring transition */
   transition: transform 0.32s cubic-bezier(0.34, 1.45, 0.64, 1),
               width 0.28s cubic-bezier(0.34, 1.45, 0.64, 1);
   will-change: transform, width;
 }
 
-/* Ensure buttons sit above the moving glider and have transparent backgrounds */
 .seg-animated button {
   position: relative;
   z-index: 2;
@@ -1642,7 +1645,6 @@ body {
   font-weight: 700;
 }
 
-/* Meta tags wrapping inside pack rows to prevent text collisions on 320px screens */
 .pack-tags-wrap {
   display: flex;
   flex-wrap: wrap;
@@ -1654,7 +1656,6 @@ body {
   margin-bottom: 2px;
 }
 
-/* Clickable item title block with tactile active feedback */
 .pack-item-clickable {
   cursor: pointer;
   touch-action: manipulation;

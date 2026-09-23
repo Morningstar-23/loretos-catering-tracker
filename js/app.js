@@ -1,6 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Application Controller & Router (js/app.js)
    - Optimized for iPhone 5s / iOS 12 Mobile Safari (320px viewport)
+   - Rigid Native Viewport Lock: Blocks rubberband bounce & drag-to-reload
    - Dynamic Header Actions: #topbar-right renders view controls (left-aligned title)
    - Scroll-position preservation on rerenderQuiet (no snapping to top on stepper taps)
    - Preserves native SELECT & INPUT interactions without click blocking
@@ -147,6 +148,33 @@
     App.UI.boot();
     App.Store.load();
 
+    // 1. Native Viewport Lock (Prevents pull-to-refresh & window bouncing on iOS 12)
+    document.addEventListener('touchmove', function (e) {
+      var cur = e.target;
+      var canScroll = false;
+
+      while (cur && cur !== document.body && cur !== document) {
+        // Allow touch scrolling ONLY inside scrollable content containers
+        if (
+          cur.id === 'view' ||
+          (cur.classList && cur.classList.contains('sheet-body')) ||
+          (cur.classList && cur.classList.contains('chips')) ||
+          cur.tagName === 'TEXTAREA' ||
+          cur.tagName === 'INPUT'
+        ) {
+          canScroll = true;
+          break;
+        }
+        cur = cur.parentNode;
+      }
+
+      // If the touch started on headers, tabbar, banner, or background, block page dragging completely
+      if (!canScroll && e.cancelable) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // 2. Global Event Delegation
     document.addEventListener('click', onTap, false);
     document.addEventListener('change', onChange, false);
     window.addEventListener('hashchange', function () { render(true); });
@@ -154,6 +182,7 @@
     if (!location.hash) location.hash = '#/dashboard';
     render(true);
 
+    // 3. Splash Screen Auto-Fade
     var splash = document.getElementById('splash');
     if (splash) {
       setTimeout(function () {
