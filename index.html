@@ -88,14 +88,32 @@
     </a>
   </nav>
 
-  <!-- PWA Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function () {});
+  <!-- Silent PWA Service Worker Registration -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        
+        // When app is opened or unlocked, check GitHub Pages for changes
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') {
+            reg.update().catch(function () {});
+          }
+        });
+        
+      }).catch(function () {});
+
+      // When the new version activates, automatically refresh to apply changes
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
-    }
-  </script>
+    });
+  }
+</script>
 
   <!-- Core Scripts in Dependency Order -->
   <script src="js/db.js"></script>
