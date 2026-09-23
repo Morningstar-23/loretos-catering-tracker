@@ -1,11 +1,11 @@
 /* ==========================================================================
    sw.js — Loreto's Catering Tracker (Service Worker)
-   - Cache-first app shell for 100% offline operation
+   - Cache-first app shell for 100% offline operation on iPhone 5s (iOS 12)
    - Dynamic version broadcaster for Settings view
    - Controlled update lifecycle (waits for user prompt / reload)
    ========================================================================== */
 
-var CACHE = 'lct-v22';
+var CACHE = 'lct-v23';
 
 var SHELL = [
   './',

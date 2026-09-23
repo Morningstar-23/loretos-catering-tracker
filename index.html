@@ -32,7 +32,24 @@
   <link rel="stylesheet" href="css/app.css">
 
   <style>
-    /* Update Banner (Positioned safely above bottom tab bar on iPhone 5s) */
+    /* Notification Badge Dot for Tabbar */
+    .tab {
+      position: relative;
+    }
+    .tab-badge {
+      display: none;
+      position: absolute;
+      top: 4px;
+      right: 22%;
+      width: 8px;
+      height: 8px;
+      background: #D63920;
+      border-radius: 50%;
+      border: 1.5px solid #FAF6F0;
+      z-index: 10;
+    }
+
+    /* Floating Update Banner (Floats right above bottom tabs) */
     #update-banner {
       display: none;
       position: fixed;
@@ -41,7 +58,7 @@
       right: 12px;
       background: #231F1C;
       color: #FAF6F0;
-      padding: 12px 16px;
+      padding: 12px 14px;
       border-radius: 12px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       z-index: 99999;
@@ -49,20 +66,38 @@
       -webkit-font-smoothing: antialiased;
     }
     #update-banner .update-content {
+      display: -webkit-box;
       display: flex;
+      -webkit-box-align: center;
       align-items: center;
+      -webkit-box-pack: justify;
       justify-content: space-between;
-      gap: 10px;
     }
     #update-banner span {
       font-size: 13px;
       font-weight: 600;
     }
-    #update-banner button {
+    #update-banner .update-actions {
+      display: -webkit-box;
+      display: flex;
+      -webkit-box-align: center;
+      align-items: center;
+    }
+    #update-banner #update-later-btn {
+      background: transparent;
+      color: #FAF6F0;
+      border: 1px solid rgba(250, 246, 240, 0.35);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      margin-right: 6px;
+    }
+    #update-banner #update-btn {
       background: #FAF6F0;
       color: #231F1C;
       border: none;
-      padding: 8px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 700;
@@ -98,15 +133,18 @@
   <!-- Dynamic Scrollable Viewport Area -->
   <main id="view"></main>
 
-  <!-- Update Banner Component -->
+  <!-- Update Banner Component with Remind Later -->
   <div id="update-banner">
     <div class="update-content">
       <span>App update available</span>
-      <button id="update-btn" type="button">Update Now</button>
+      <div class="update-actions">
+        <button id="update-later-btn" type="button">Later</button>
+        <button id="update-btn" type="button">Update</button>
+      </div>
     </div>
   </div>
 
-  <!-- Fixed Bottom Tab Bar -->
+  <!-- Fixed Bottom Tab Bar with Notification Badge -->
   <nav id="tabbar">
     <a href="#/dashboard" class="tab" data-tab="dashboard">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -127,6 +165,7 @@
       <span>History</span>
     </a>
     <a href="#/settings" class="tab" data-tab="settings">
+      <span class="tab-badge" id="settings-tab-badge"></span>
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="3"/>
         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -138,8 +177,9 @@
   <!-- PWA Service Worker Registration & Live Version Sync -->
   <script>
     window.APP_VERSION = 'Loading...';
+    window.pendingUpdateWorker = null;
 
-    // 1. Immediately read active cache key as version fallback
+    // Immediately fetch cache name as dynamic version fallback
     if ('caches' in window) {
       caches.keys().then(function (keys) {
         for (var i = 0; i < keys.length; i++) {
@@ -153,27 +193,45 @@
       });
     }
 
+    function showUpdateNotification(worker) {
+      window.pendingUpdateWorker = worker;
+
+      var banner = document.getElementById('update-banner');
+      var badge = document.getElementById('settings-tab-badge');
+      var btnUpdate = document.getElementById('update-btn');
+      var btnLater = document.getElementById('update-later-btn');
+
+      if (badge) badge.style.display = 'block';
+      if (banner) banner.style.display = 'block';
+
+      if (btnUpdate) {
+        btnUpdate.onclick = function () {
+          btnUpdate.disabled = true;
+          btnUpdate.textContent = 'Updating...';
+          worker.postMessage({ action: 'skipWaiting' });
+        };
+      }
+
+      if (btnLater) {
+        btnLater.onclick = function () {
+          banner.style.display = 'none'; // Dismiss banner, badge stays on Settings
+        };
+      }
+
+      // If Settings view is currently mounted, update its UI immediately
+      if (window.App && window.App.rerenderQuiet) {
+        window.App.rerenderQuiet();
+      }
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('./sw.js').then(function (reg) {
-          window.swRegistration = reg; // Accessible globally for manual update checks
+          window.swRegistration = reg;
 
-          function promptUser(worker) {
-            var banner = document.getElementById('update-banner');
-            var btn = document.getElementById('update-btn');
-            if (!banner || !btn) return;
-            banner.style.display = 'block';
-
-            btn.onclick = function () {
-              btn.disabled = true;
-              btn.textContent = 'Updating...';
-              worker.postMessage({ action: 'skipWaiting' });
-            };
-          }
-
-          // Case A: A worker is already sitting in waiting state
+          // Case A: Updated worker already waiting
           if (reg.waiting) {
-            promptUser(reg.waiting);
+            showUpdateNotification(reg.waiting);
           }
 
           // Case B: Worker found and installing
@@ -183,21 +241,19 @@
 
             newWorker.addEventListener('statechange', function () {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                promptUser(newWorker);
+                showUpdateNotification(newWorker);
               }
             });
           });
 
-          // Case C: Query active worker directly for its CACHE version
+          // Case C: Query active worker for current version string
           if (navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ action: 'getVersion' });
           }
 
-          // Aggressive updates on iOS: check on open, focus, and network online
+          // Force check GitHub Pages when opened, focused, or reconnected
           function checkUpdate() {
-            if (navigator.onLine) {
-              reg.update().catch(function () {});
-            }
+            if (navigator.onLine) reg.update().catch(function () {});
           }
 
           document.addEventListener('visibilitychange', function () {
@@ -205,13 +261,11 @@
           });
           window.addEventListener('pageshow', checkUpdate);
           window.addEventListener('online', checkUpdate);
-
-          // Initial check
           checkUpdate();
 
         }).catch(function () {});
 
-        // Listen for version message response from sw.js
+        // Listen for version response from sw.js
         navigator.serviceWorker.addEventListener('message', function (e) {
           if (e.data && e.data.action === 'version') {
             window.APP_VERSION = e.data.version;
@@ -220,7 +274,7 @@
           }
         });
 
-        // When updated worker takes control, refresh page
+        // When updated worker takes control, refresh page automatically
         var refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', function () {
           if (!refreshing) {

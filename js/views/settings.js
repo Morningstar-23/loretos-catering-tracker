@@ -4,7 +4,7 @@
    - Dedicated Staff Directory Sheet with Live Search & Role Filters
    - Staff Profile Modal with Photo Upload, Call Action, & Gig History
    - Offline JSON backup export & restore with IndexedDB photos
-   - Dynamic Service Worker version display & Manual Update Checker
+   - Dynamic Service Worker version display & Update Center
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -104,19 +104,29 @@ App.Views.settings = (function () {
         '</button>' +
       '</div>' +
 
-      /* 7. Dynamic Version Display & Manual Update Trigger */
+      /* 7. Dynamic Version Display & Update Center */
       '<div style="text-align:center;margin-top:20px;margin-bottom:16px">' +
+        (window.pendingUpdateWorker ?
+          '<div class="card mb12" style="background:#231F1C;color:#FAF6F0;text-align:center;padding:12px;box-shadow:0 4px 14px rgba(0,0,0,0.25)">' +
+            '<p style="font-size:13px;font-weight:700;margin-bottom:4px">New version is downloaded & ready!</p>' +
+            '<p class="muted mb8" style="font-size:11.5px;color:#D3C9BF">Update now to get the latest changes.</p>' +
+            '<button type="button" class="btn btn-sm" data-act="apply-pending-update" style="background:#FAF6F0;color:#231F1C;font-weight:700;border:none;margin:0 auto;width:auto;padding:0 18px;min-height:34px">' +
+              'Install and Relaunch' +
+            '</button>' +
+          '</div>' : ''
+        ) +
         '<p class="muted" style="font-size:11.5px;margin-bottom:6px">' +
           'Loreto\'s Catering Tracker &middot; Adelaide SA &middot; <strong id="settings-app-version-tag" style="color:var(--timber-ink)">' + (window.APP_VERSION || 'Loading...') + '</strong>' +
         '</p>' +
-        '<button type="button" class="btn btn-ghost btn-sm" data-act="check-for-updates" style="width:auto;padding:0 14px;min-height:30px;font-size:11px;margin:0 auto">' +
-          'Check for updates' +
-        '</button>' +
+        (!window.pendingUpdateWorker ?
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="check-for-updates" style="width:auto;padding:0 14px;min-height:30px;font-size:11px;margin:0 auto">' +
+            'Check for updates' +
+          '</button>' : ''
+        ) +
       '</div>';
   }
 
   function mounted() {
-    // Populate active version dynamically if available
     var vEl = document.getElementById('settings-app-version-tag');
     if (vEl && window.APP_VERSION) {
       vEl.textContent = window.APP_VERSION;
@@ -467,6 +477,14 @@ App.Views.settings = (function () {
           App.rerenderQuiet();
         });
       });
+      return;
+    }
+
+    if (act === 'apply-pending-update') {
+      if (window.pendingUpdateWorker) {
+        U.toast('Applying update and relaunching...');
+        window.pendingUpdateWorker.postMessage({ action: 'skipWaiting' });
+      }
       return;
     }
 
