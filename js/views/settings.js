@@ -4,6 +4,7 @@
    - Dedicated Staff Directory Sheet with Live Search & Role Filters
    - Staff Profile Modal with Photo Upload, Call Action, & Gig History
    - Offline JSON backup export & restore with IndexedDB photos
+   - Dynamic Service Worker version display & Manual Update Checker
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -103,10 +104,24 @@ App.Views.settings = (function () {
         '</button>' +
       '</div>' +
 
-      '<p class="muted mt16" style="text-align:center;font-size:11px">Loreto\'s Catering Tracker &middot; Adelaide SA &middot; v20</p>';
+      /* 7. Dynamic Version Display & Manual Update Trigger */
+      '<div style="text-align:center;margin-top:20px;margin-bottom:16px">' +
+        '<p class="muted" style="font-size:11.5px;margin-bottom:6px">' +
+          'Loreto\'s Catering Tracker &middot; Adelaide SA &middot; <strong id="settings-app-version-tag" style="color:var(--timber-ink)">' + (window.APP_VERSION || 'Loading...') + '</strong>' +
+        '</p>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="check-for-updates" style="width:auto;padding:0 14px;min-height:30px;font-size:11px;margin:0 auto">' +
+          'Check for updates' +
+        '</button>' +
+      '</div>';
   }
 
   function mounted() {
+    // Populate active version dynamically if available
+    var vEl = document.getElementById('settings-app-version-tag');
+    if (vEl && window.APP_VERSION) {
+      vEl.textContent = window.APP_VERSION;
+    }
+
     var fi = document.getElementById('import-file');
     if (fi) {
       fi.addEventListener('change', function (e) {
@@ -452,6 +467,26 @@ App.Views.settings = (function () {
           App.rerenderQuiet();
         });
       });
+      return;
+    }
+
+    if (act === 'check-for-updates') {
+      if (!navigator.onLine) {
+        U.toast('Offline. Connect to Wi-Fi to check for updates.');
+        return;
+      }
+      if (window.swRegistration) {
+        U.toast('Checking GitHub for updates...');
+        window.swRegistration.update().then(function (reg) {
+          if (!reg.installing && !reg.waiting) {
+            U.toast('App is up to date (' + (window.APP_VERSION || '') + ').');
+          }
+        }).catch(function () {
+          U.toast('Could not connect to update server.');
+        });
+      } else {
+        U.toast('Service worker is not active.');
+      }
       return;
     }
   }

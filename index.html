@@ -30,10 +30,49 @@
   
   <!-- Primary Application Styles -->
   <link rel="stylesheet" href="css/app.css">
+
+  <style>
+    /* Update Banner (Positioned safely above bottom tab bar on iPhone 5s) */
+    #update-banner {
+      display: none;
+      position: fixed;
+      bottom: 74px;
+      left: 12px;
+      right: 12px;
+      background: #231F1C;
+      color: #FAF6F0;
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      z-index: 99999;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    #update-banner .update-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #update-banner span {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    #update-banner button {
+      background: #FAF6F0;
+      color: #231F1C;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
-  <!-- Splash Screen (Fades out automatically in app.js) -->
+  <!-- Splash Screen -->
   <div id="splash">
     <div class="splash-brand">
       <div class="splash-logo-ring">
@@ -47,7 +86,7 @@
     </div>
   </div>
 
-  <!-- Top Navigation Header with Brand Logo -->
+  <!-- Top Navigation Header -->
   <header id="topbar">
     <div class="topbar-brand">
       <img src="icons/icon-180.png" alt="Loreto's" class="topbar-logo">
@@ -59,7 +98,15 @@
   <!-- Dynamic Scrollable Viewport Area -->
   <main id="view"></main>
 
-  <!-- Fixed Bottom Tab Bar with Raised Hero Circle -->
+  <!-- Update Banner Component -->
+  <div id="update-banner">
+    <div class="update-content">
+      <span>App update available</span>
+      <button id="update-btn" type="button">Update Now</button>
+    </div>
+  </div>
+
+  <!-- Fixed Bottom Tab Bar -->
   <nav id="tabbar">
     <a href="#/dashboard" class="tab" data-tab="dashboard">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -88,32 +135,102 @@
     </a>
   </nav>
 
-  <!-- Silent PWA Service Worker Registration -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js').then(function (reg) {
-        
-        // When app is opened or unlocked, check GitHub Pages for changes
-        document.addEventListener('visibilitychange', function () {
-          if (document.visibilityState === 'visible') {
-            reg.update().catch(function () {});
-          }
-        });
-        
-      }).catch(function () {});
+  <!-- PWA Service Worker Registration & Live Version Sync -->
+  <script>
+    window.APP_VERSION = 'Loading...';
 
-      // When the new version activates, automatically refresh to apply changes
-      var refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
+    // 1. Immediately read active cache key as version fallback
+    if ('caches' in window) {
+      caches.keys().then(function (keys) {
+        for (var i = 0; i < keys.length; i++) {
+          if (keys[i].indexOf('lct-') === 0) {
+            window.APP_VERSION = keys[i];
+            var el = document.getElementById('settings-app-version-tag');
+            if (el) el.textContent = keys[i];
+            break;
+          }
         }
       });
-    });
-  }
-</script>
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./sw.js').then(function (reg) {
+          window.swRegistration = reg; // Accessible globally for manual update checks
+
+          function promptUser(worker) {
+            var banner = document.getElementById('update-banner');
+            var btn = document.getElementById('update-btn');
+            if (!banner || !btn) return;
+            banner.style.display = 'block';
+
+            btn.onclick = function () {
+              btn.disabled = true;
+              btn.textContent = 'Updating...';
+              worker.postMessage({ action: 'skipWaiting' });
+            };
+          }
+
+          // Case A: A worker is already sitting in waiting state
+          if (reg.waiting) {
+            promptUser(reg.waiting);
+          }
+
+          // Case B: Worker found and installing
+          reg.addEventListener('updatefound', function () {
+            var newWorker = reg.installing;
+            if (!newWorker) return;
+
+            newWorker.addEventListener('statechange', function () {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                promptUser(newWorker);
+              }
+            });
+          });
+
+          // Case C: Query active worker directly for its CACHE version
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ action: 'getVersion' });
+          }
+
+          // Aggressive updates on iOS: check on open, focus, and network online
+          function checkUpdate() {
+            if (navigator.onLine) {
+              reg.update().catch(function () {});
+            }
+          }
+
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') checkUpdate();
+          });
+          window.addEventListener('pageshow', checkUpdate);
+          window.addEventListener('online', checkUpdate);
+
+          // Initial check
+          checkUpdate();
+
+        }).catch(function () {});
+
+        // Listen for version message response from sw.js
+        navigator.serviceWorker.addEventListener('message', function (e) {
+          if (e.data && e.data.action === 'version') {
+            window.APP_VERSION = e.data.version;
+            var el = document.getElementById('settings-app-version-tag');
+            if (el) el.textContent = e.data.version;
+          }
+        });
+
+        // When updated worker takes control, refresh page
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      });
+    }
+  </script>
 
   <!-- Core Scripts in Dependency Order -->
   <script src="js/db.js"></script>
