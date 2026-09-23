@@ -1,13 +1,11 @@
 /* ==========================================================================
-   Loreto's Catering Tracker — Views: Catering (js/views/catering.js)
-   - Real-time Add-to-Van quantity modal with MAX button and in-checklist stay
-   - In-place search bar (zero backwards typing / cursor jump bug)
-   - Real-time detection & alert when active load differs from kit preset
-   - "Kit options" modal: update current loaded preset OR save as brand-new preset
-   - 3 View Modes: Standard Cards, Compact Collapsible Accordions, 3-Col E-Commerce Grid
-   - Shopee-style swipe-to-delete row engine
-   - Full High-Resolution Lightbox Modal on item photo tap
-   - Live load-out editing & kit switching while van is out on location
+   Loreto's Catering Tracker — Views: Catering (js/views/catering.js) - PART 1
+   - Clean Kit Selection: "Kit presets" when empty, "Kit: [Name]" when loaded
+   - Preset Modifications: Update existing, Save as new, or Discard & Revert
+   - 1-Tap Kit Switching with clear-load confirmation (No messy merging)
+   - Real-time Inventory Stock Shortage Warnings & Auto-Cap
+   - Category-Safe Compact View: No fragmented or lost categories
+   - Reusable Icon View Switcher (Cards / Compact / Grid)
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -24,6 +22,12 @@ App.Views.catering = (function () {
   var loadSort = 'cat'; // 'cat' | 'alpha-asc' | 'qty-desc'
   var viewMode = 'cards'; // 'cards' | 'compact' | 'grid'
   var openAccordions = {}; // catId -> boolean
+  var catPageLimits = {}; // catId -> visible count limit
+
+  /* Global Pagination (for Cards and Grid views) */
+  var page = 1;
+  var pageSize = 10;
+  var totalPages = 1;
 
   /* Add Items / Checklist Controls */
   var chkQ = '';
@@ -77,7 +81,59 @@ App.Views.catering = (function () {
     U.openLightbox(it.photoId, it.name, metaHtml);
   }
 
-  /* Checks if current van items differ from loaded preset */
+  /* Compares staged count against actual stock and kit preset template */
+  function getItemStockStatus(itemId, stagedQty, presetId) {
+    var it = S.item(itemId);
+    var owned = it ? (it.qty || 0) : 0;
+    var p = presetId ? S.preset(presetId) : null;
+    var presetTarget = null;
+
+    if (p && p.lines) {
+      for (var i = 0; i < p.lines.length; i++) {
+        if (p.lines[i].itemId === itemId) {
+          presetTarget = p.lines[i].qty;
+          break;
+        }
+      }
+    }
+
+    var isExceeding = stagedQty > owned;
+    var shortCount = isExceeding ? (stagedQty - owned) : 0;
+    var kitDiff = (presetTarget !== null) ? (stagedQty - presetTarget) : 0;
+
+    return {
+      owned: owned,
+      staged: stagedQty,
+      presetTarget: presetTarget,
+      isExceeding: isExceeding,
+      shortCount: shortCount,
+      kitDiff: kitDiff,
+      unit: it ? it.unit : 'pc'
+    };
+  }
+
+  /* Returns all items in the active event that exceed available inventory */
+  function getActiveShortages(ev) {
+    if (!ev || !ev.lines) return [];
+    var list = [];
+    for (var i = 0; i < ev.lines.length; i++) {
+      var l = ev.lines[i];
+      var it = S.item(l.itemId);
+      var owned = it ? (it.qty || 0) : 0;
+      if (l.out > owned) {
+        list.push({
+          line: l,
+          item: it,
+          staged: l.out,
+          owned: owned,
+          shortBy: l.out - owned
+        });
+      }
+    }
+    return list;
+  }
+
+  /* Detects if active van load differs from loaded preset */
   function isEventPresetModified(ev) {
     if (!ev || !ev.presetId) return false;
     var p = S.preset(ev.presetId);
@@ -98,10 +154,15 @@ App.Views.catering = (function () {
 
     return '<div class="banner mb12">' +
         '<h3>Ready for the next booking</h3>' +
-        '<p class="muted mt8" style="color:rgba(250,246,240,0.85)">Load gear from a kit preset, or build the van load piece-by-piece from inventory.</p>' +
-        '<button type="button" class="btn btn-primary mt12" data-act="new-blank">' +
-          U.icon('plus', 'mr4') + ' Start a blank event' +
-        '</button>' +
+        '<p class="muted mt8" style="color:rgba(250,246,240,0.85)">Load gear from a kit preset, stage 100% of inventory, or build item-by-item.</p>' +
+        '<div class="row mt12" style="gap:6px">' +
+          '<button type="button" class="btn btn-primary grow mr6" data-act="new-blank">' +
+            U.icon('plus', 'mr4') + ' Blank event' +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost grow" data-act="new-event-all-stock" style="background:#FAF6F0;border-color:var(--line-strong)">' +
+            U.icon('package', 'mr4') + ' Stage all stock' +
+          '</button>' +
+        '</div>' +
       '</div>' +
 
       '<div class="row row-between mt12 mb8">' +
@@ -243,13 +304,51 @@ App.Views.catering = (function () {
     });
   }
 
-  function renderCardsView(lines, editable, isOut) {
+  function getFilteredBackLines(lines) {
+    var q = (loadQ || '').toLowerCase().trim();
+    return lines.filter(function (l) {
+      if (onlyShort) {
+        if (l.isConsumable || l.back >= l.out) return false;
+      }
+      if (loadCat) {
+        var it = S.item(l.itemId);
+        if (!it || it.categoryId !== loadCat) return false;
+      }
+      if (!q) return true;
+      var hay = (l.name + ' ' + (l.brand || '') + ' ' + (l.tagLabel || '')).toLowerCase();
+      return hay.indexOf(q) > -1;
+    }).sort(function (a, b) {
+      var shortA = (!a.isConsumable && a.back < a.out) ? 1 : 0;
+      var shortB = (!b.isConsumable && b.back < b.out) ? 1 : 0;
+      if (shortA !== shortB) return shortB - shortA;
+
+      var itA = S.item(a.itemId), itB = S.item(b.itemId);
+      var catA = itA ? itA.categoryId : '', catB = itB ? itB.categoryId : '';
+      if (catA !== catB) return catA.localeCompare(catB);
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }
+
+  /* ==========================================================================
+     Load-Out Mode View Renderers (Cards / Compact / Grid)
+     ========================================================================== */
+  function renderCardsView(lines, editable, isOut, evPresetId) {
     return lines.map(function (l) {
       var it = S.item(l.itemId);
       var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
       var cat = it ? S.category(it.categoryId) : null;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Loreto');
       var isConsumable = !!l.isConsumable;
+
+      var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
+
+      var alertTagsHtml = '';
+      if (stat.isExceeding) {
+        alertTagsHtml = '<span class="tag tag-red" style="font-size:9.5px;font-weight:700">⚠️ OVER STOCK: ' + stat.staged + ' staged vs ' + stat.owned + ' in inventory</span>';
+      } else if (stat.presetTarget !== null && stat.kitDiff !== 0) {
+        var diffLabel = stat.kitDiff > 0 ? ('+' + stat.kitDiff) : String(stat.kitDiff);
+        alertTagsHtml = '<span class="tag tag-yellow" style="font-size:9.5px">Kit: ' + stat.presetTarget + ' (' + diffLabel + ')</span>';
+      }
 
       return '<div class="swipe-row-outer" data-swipe-id="' + l.itemId + '">' +
         '<div class="swipe-actions-bg">' +
@@ -258,7 +357,7 @@ App.Views.catering = (function () {
             '<span>Remove</span>' +
           '</button>' +
         '</div>' +
-        '<div class="swipe-row-content" id="swipe-content-' + l.itemId + '">' +
+        '<div class="swipe-row-content' + (stat.isExceeding ? ' card-shortage' : '') + '" id="swipe-content-' + l.itemId + '">' +
           '<div class="row row-between" style="align-items:flex-start">' +
             '<div class="row grow mr8" style="min-width:0">' +
               '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + l.itemId + '">' +
@@ -269,7 +368,8 @@ App.Views.catering = (function () {
                 '<div class="pack-tags-wrap">' +
                   U.tag(brandLabel, l.tagColor) +
                   (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
-                  '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
+                  alertTagsHtml +
+                  '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + ' (Stock: ' + stat.owned + ')</span>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -290,7 +390,8 @@ App.Views.catering = (function () {
     }).join('');
   }
 
-  function renderCompactView(lines, editable, isOut) {
+  /* Compact View: Category-isolated layout so categories are never cut or pushed across global pages */
+  function renderCompactView(lines, editable, isOut, evPresetId) {
     var cats = S.categories();
     var groups = {};
     var uncat = [];
@@ -313,25 +414,41 @@ App.Views.catering = (function () {
       if (!cLines || !cLines.length) return;
 
       var isOpen = openAccordions[c.id] !== false;
+      var limit = catPageLimits[c.id] || 10;
+      var visibleLines = cLines.slice(0, limit);
+      var hasMore = cLines.length > limit;
 
-      var rowsHtml = cLines.map(function (l) {
+      var rowsHtml = visibleLines.map(function (l) {
         var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Loreto');
-        return '<div class="compact-item-row" id="row-compact-' + l.itemId + '">' +
+        var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
+
+        return '<div class="compact-item-row' + (stat.isExceeding ? ' short' : '') + '" id="row-compact-' + l.itemId + '">' +
           '<div class="compact-item-info" data-act="open-qty-modal" data-id="' + l.itemId + '">' +
             '<div class="compact-item-name truncate">' + U.esc(l.name) + '</div>' +
             '<div class="compact-item-meta">' +
               U.tag(brandLabel, l.tagColor) +
-              (l.isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
+              (stat.isExceeding
+                ? '<span class="tag tag-red ml4" style="font-size:9px">⚠️ Stock: ' + stat.owned + '</span>'
+                : '<span class="muted ml4" style="font-size:10.5px">Stock: ' + stat.owned + '</span>') +
               (isOut && l.back > 0 ? '<span class="muted ml4" style="font-size:10.5px;color:var(--foliage)">(' + l.back + ' back)</span>' : '') +
             '</div>' +
           '</div>' +
           '<div class="stepper">' +
             '<button type="button" class="step-btn" data-act="out-minus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('minus') + '</button>' +
-            '<span style="font-size:14px;font-weight:700;min-width:32px;text-align:center">' + l.out + '</span>' +
+            '<span style="font-size:14px;font-weight:700;min-width:32px;text-align:center;' + (stat.isExceeding ? 'color:var(--alert)' : '') + '">' + l.out + '</span>' +
             '<button type="button" class="step-btn" data-act="out-plus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('plus') + '</button>' +
           '</div>' +
         '</div>';
       }).join('');
+
+      var moreBtn = hasMore ? (
+        '<div class="row row-between mt4" style="padding:4px 6px">' +
+          '<span class="muted" style="font-size:11px">Showing ' + limit + ' of ' + cLines.length + '</span>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="expand-cat-limit" data-id="' + c.id + '" style="width:auto;min-height:28px;padding:1px 8px;font-size:11px">' +
+            '+ Show more' +
+          '</button>' +
+        '</div>'
+      ) : '';
 
       html += '<div class="cat-accordion ' + (isOpen ? 'open' : '') + '" id="cat-acc-' + c.id + '">' +
         '<button type="button" class="cat-accordion-head" data-act="toggle-cat-acc" data-id="' + c.id + '">' +
@@ -342,7 +459,7 @@ App.Views.catering = (function () {
           '</span>' +
           U.icon('chevronDown', 'cat-accordion-chevron') +
         '</button>' +
-        '<div class="cat-accordion-body">' + rowsHtml + '</div>' +
+        '<div class="cat-accordion-body">' + rowsHtml + moreBtn + '</div>' +
       '</div>';
     });
 
@@ -373,12 +490,20 @@ App.Views.catering = (function () {
     return html;
   }
 
-  function renderGridView(lines) {
+  function renderGridView(lines, evPresetId) {
     var tiles = lines.map(function (l) {
       var it = S.item(l.itemId);
       var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
       var cat = it ? S.category(it.categoryId) : null;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || '');
+      var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
+
+      var pillHtml = '';
+      if (stat.isExceeding) {
+        pillHtml = '<div class="grid-staged-pill short truncate">⚠️ +' + stat.shortCount + ' short!</div>';
+      } else {
+        pillHtml = '<div class="grid-staged-pill done truncate">' + l.out + ' in van (' + stat.owned + ')</div>';
+      }
 
       return '<div class="grid-item-card" data-act="open-qty-modal" data-id="' + l.itemId + '">' +
         '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
@@ -387,14 +512,62 @@ App.Views.catering = (function () {
         '</div>' +
         '<div class="grid-title">' + U.esc(l.name) + '</div>' +
         (brandLabel ? '<div class="grid-brand truncate">' + U.esc(brandLabel) + '</div>' : '') +
-        '<div class="grid-staged-pill">' + l.out + ' in van</div>' +
+        pillHtml +
       '</div>';
     }).join('');
 
     return '<div class="ecommerce-grid">' + tiles + '</div>';
   }
 
-  /* Kit Preset Options Sheet: Update existing loaded preset or save as new kit */
+  /* Kit Picker Sheet: Used when no kit is loaded, or when switching to another kit */
+  function openKitPickerSheet(ev, isSwitching) {
+    if (!ev) return;
+    var presets = S.presets();
+
+    var listHtml = presets.map(function (p) {
+      var avail = S.checkPresetAvailability(p.id, true);
+      var isLoadedNow = ev.presetId === p.id;
+      var isShort = avail && !avail.available;
+
+      return '<div class="card mb8" style="' + (isLoadedNow ? 'border-color:var(--inasal-orange);background:var(--inasal-soft)' : '') + '">' +
+        '<div class="row row-between mb4">' +
+          '<div class="grow mr8 truncate">' +
+            '<strong style="font-size:13.5px;color:var(--timber-ink)">' + U.esc(p.name) + '</strong>' +
+            '<div class="muted mt2" style="font-size:11px">' +
+              p.lines.length + ' item types &middot; ' + (avail ? avail.totalNeeded : 0) + ' pieces' +
+            '</div>' +
+          '</div>' +
+          (isLoadedNow ? '<span class="tag tag-orange">Currently Active</span>' : '') +
+        '</div>' +
+        '<div class="row mb8">' +
+          (isShort
+            ? '<span class="tag tag-red" style="font-size:9.5px">' + avail.shortCount + ' items short in inventory</span>'
+            : '<span class="tag tag-green" style="font-size:9.5px">100% available in stock</span>') +
+        '</div>' +
+        '<button type="button" class="btn btn-primary btn-sm" data-act="' + (isSwitching ? 'confirm-switch-preset' : 'select-initial-preset') + '" data-id="' + p.id + '">' +
+          U.icon('check', 'mr4') + (isSwitching ? 'Switch to this kit' : 'Load this kit into van') +
+        '</button>' +
+      '</div>';
+    }).join('');
+
+    var title = isSwitching ? 'Switch to Another Kit' : 'Select a Kit Preset';
+    var html =
+      '<p class="muted mb12" style="font-size:12px">' +
+        (isSwitching
+          ? 'Pick a new kit preset. Switching will replace current van items with this kit.'
+          : 'Choose a standard equipment bundle to stage the van in seconds.') +
+      '</p>' +
+      '<div class="list mb12">' +
+        (listHtml || '<div class="empty"><p class="muted">No kit presets saved yet.</p></div>') +
+      '</div>' +
+      '<button type="button" class="btn btn-ghost" data-act="' + (isSwitching ? 'open-preset-options' : 'sheet-close') + '">' +
+        (isSwitching ? 'Back to kit options' : 'Cancel') +
+      '</button>';
+
+    U.openSheet(title, html, onAct);
+  }
+
+  /* Kit Preset Options Sheet: Update, Save as New, Discard, or Switch */
   function openPresetOptionsSheet(ev) {
     if (!ev) return;
     var p = ev.presetId ? S.preset(ev.presetId) : null;
@@ -404,7 +577,7 @@ App.Views.catering = (function () {
       '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
         '<div class="row row-between">' +
           '<div>' +
-            '<span class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Loaded Kit Preset</span>' +
+            '<span class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Active Kit Preset</span>' +
             '<h4 style="font-size:15px;font-weight:700;color:var(--timber-ink)">' + U.esc(p.name) + '</h4>' +
           '</div>' +
           (isModified
@@ -413,21 +586,29 @@ App.Views.catering = (function () {
         '</div>' +
         (isModified
           ? '<p class="muted mt4" style="font-size:11.5px">Loaded gear counts or items differ from the saved preset template.</p>'
-          : '') +
+          : '<p class="muted mt4" style="font-size:11.5px">Van load matches the template exactly.</p>') +
       '</div>'
     ) : '';
 
-    var syncButtons = '';
-    if (p) {
-      syncButtons =
+    var modActionButtons = '';
+    if (p && isModified) {
+      modActionButtons =
         '<button type="button" class="btn btn-primary mb8" data-act="update-current-preset" data-id="' + p.id + '">' +
           U.icon('check', 'mr4') + ' Update "' + U.esc(p.name) + '" with current van load' +
         '</button>' +
         '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
-          U.icon('plus', 'mr4') + ' Save current van load as NEW kit preset' +
+          U.icon('plus', 'mr4') + ' Save current van load as NEW preset' +
+        '</button>' +
+        '<button type="button" class="btn btn-danger btn-sm mb8" data-act="revert-preset-changes">' +
+          U.icon('refresh', 'mr4') + ' Discard changes & revert to original kit' +
+        '</button>';
+    } else if (p) {
+      modActionButtons =
+        '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
+          U.icon('plus', 'mr4') + ' Save current van load as NEW preset' +
         '</button>';
     } else {
-      syncButtons =
+      modActionButtons =
         '<button type="button" class="btn btn-primary mb8" data-act="prompt-save-new-preset">' +
           U.icon('plus', 'mr4') + ' Save current van load as kit preset' +
         '</button>';
@@ -435,15 +616,15 @@ App.Views.catering = (function () {
 
     var html =
       activeKitCard +
-      syncButtons +
+      modActionButtons +
       '<div class="divider"></div>' +
-      '<button type="button" class="btn btn-ghost mb8" data-act="pick-preset-load-inner">' +
-        U.icon('layers', 'mr4') + ' Load / Merge another kit preset into van...' +
+      '<button type="button" class="btn btn-ghost mb8" data-act="pick-preset-to-switch">' +
+        U.icon('layers', 'mr4') + ' Switch to another kit...' +
       '</button>' +
       '<button type="button" class="btn btn-ghost mb8" data-act="manage-presets">' +
         U.icon('settings', 'mr4') + ' Manage all saved kit presets' +
       '</button>' +
-      '<button type="button" class="btn btn-ghost" data-act="sheet-close">Cancel</button>';
+      '<button type="button" class="btn btn-ghost" data-act="sheet-close">Done</button>';
 
     U.openSheet('Kit Preset Options', html, onAct);
   }
@@ -476,24 +657,48 @@ App.Views.catering = (function () {
     var p = ev.presetId ? S.preset(ev.presetId) : null;
     var isModified = isEventPresetModified(ev);
 
+    var shortages = getActiveShortages(ev);
+
+    // Dynamic Kit Button Label
+    var kitBtnLabel = p
+      ? (U.icon('layers', 'mr4') + 'Kit: ' + U.esc(p.name) + (isModified ? ' *' : ''))
+      : (U.icon('layers', 'mr4') + 'Kit presets');
+
     var headerBtns =
       '<div class="row row-between mb8">' +
         '<button type="button" class="btn btn-primary btn-sm grow mr8" data-act="open-checklist">' +
           U.icon('plus', 'mr4') + ' Add items' +
         '</button>' +
-        '<button type="button" class="btn btn-ghost btn-sm grow" data-act="open-preset-options">' +
-          U.icon('layers', 'mr4') + (p ? ('Kit: ' + U.esc(p.name)) : 'Kit presets') +
+        '<button type="button" class="btn btn-ghost btn-sm grow truncate" data-act="' + (p ? 'open-preset-options' : 'open-kit-picker') + '" style="font-weight:700">' +
+          kitBtnLabel +
         '</button>' +
       '</div>';
 
     var liveNotice = isOut ? (
       '<div class="live-edit-banner">' +
         '<h4>' + U.icon('truck') + ' Live In-Field Load-out</h4>' +
-        '<p>Adjust quantities, add items, or merge kit presets. Returns in Pack down are automatically updated.</p>' +
+        '<p>Adjust quantities or add items. Returns in Pack down are automatically updated.</p>' +
       '</div>'
     ) : '';
 
-    var presetAlertBanner = (p && isModified) ? (
+    // Real-Time Shortage Alert Banner
+    var shortageAlertBanner = (shortages.length > 0) ? (
+      '<div class="card mb8" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:10px 12px">' +
+        '<div class="row row-between">' +
+          '<div class="grow mr8">' +
+            '<span style="font-size:12.5px;font-weight:700;color:var(--alert)">' +
+              '⚠️ Shortage Alert: ' + shortages.length + ' item(s) exceed stock' +
+            '</span>' +
+            '<p class="muted" style="font-size:11px;margin-top:2px">Van load is higher than total inventory owned.</p>' +
+          '</div>' +
+          '<button type="button" class="btn btn-danger btn-sm" data-act="auto-clamp-stock" style="width:auto;min-height:30px;padding:2px 10px;font-size:11px">' +
+            'Cap to stock' +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ) : '';
+
+    var presetAlertBanner = (p && isModified && shortages.length === 0) ? (
       '<div class="card mb8" style="background:var(--gold-tint);border-color:rgba(212,155,66,0.35);padding:8px 12px">' +
         '<div class="row row-between">' +
           '<div class="grow mr8">' +
@@ -510,8 +715,13 @@ App.Views.catering = (function () {
     ) : '';
 
     if (!ev.lines.length) {
-      return liveNotice + headerBtns + U.empty('truck', 'Nothing loaded yet', 'Search gear or pick a kit preset to fill the van.',
-        '<button type="button" class="btn btn-primary" data-act="open-checklist">' + U.icon('plus', 'mr4') + ' Open gear checklist</button>');
+      return liveNotice + headerBtns + U.empty('truck', 'Nothing loaded yet', 'Search gear, pick a kit preset, or stage your whole inventory.',
+        '<div class="row" style="gap:6px">' +
+          '<button type="button" class="btn btn-primary grow mr4" data-act="open-checklist">' + U.icon('plus', 'mr4') + ' Add items</button>' +
+          '<button type="button" class="btn btn-ghost grow mr4" data-act="open-kit-picker">' + U.icon('layers', 'mr4') + ' Load a kit</button>' +
+          '<button type="button" class="btn btn-ghost grow" data-act="stage-all-inventory">' + U.icon('package', 'mr4') + ' All stock</button>' +
+        '</div>'
+      );
     }
 
     var cats = S.categories();
@@ -521,6 +731,17 @@ App.Views.catering = (function () {
           U.esc(c.name) + '</button>';
       }).join('');
 
+    var filtered = getFilteredLines(ev.lines);
+
+    // Global pagination only applies to Cards and Grid views
+    totalPages = Math.ceil(filtered.length / pageSize) || 1;
+    if (page > totalPages) page = totalPages;
+    if (page < 1) page = 1;
+
+    var startIdx = (page - 1) * pageSize;
+    var endIdx = Math.min(startIdx + pageSize, filtered.length);
+    var paginatedLines = filtered.slice(startIdx, endIdx);
+
     var searchBarHtml =
       '<div class="search mb8">' +
         U.icon('search', 'search-icon') +
@@ -528,41 +749,53 @@ App.Views.catering = (function () {
       '</div>' +
       '<div class="chips filter-bar mb8">' + catChips + '</div>' +
       '<div class="row row-between mb8">' +
-        '<span class="muted" style="font-size:11px">' + ev.lines.length + ' item types staged</span>' +
-        '<div class="view-mode-pills">' +
-          '<button type="button" class="view-mode-btn' + (viewMode === 'cards' ? ' on' : '') + '" data-act="set-view-mode" data-mode="cards">Cards</button>' +
-          '<button type="button" class="view-mode-btn' + (viewMode === 'compact' ? ' on' : '') + '" data-act="set-view-mode" data-mode="compact">Compact</button>' +
-          '<button type="button" class="view-mode-btn' + (viewMode === 'grid' ? ' on' : '') + '" data-act="set-view-mode" data-mode="grid">Grid (3x)</button>' +
-        '</div>' +
+        '<span class="muted" style="font-size:11px">' +
+          (viewMode === 'compact'
+            ? filtered.length + ' item types in categories'
+            : (filtered.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + filtered.length : '0 items')) +
+        '</span>' +
+        U.viewModeToggle(viewMode, 'set-view-mode') +
       '</div>';
 
-    var filtered = getFilteredLines(ev.lines);
     var contentHtml = '';
-
     if (!filtered.length) {
       contentHtml = '<div class="empty mb12"><p class="muted">No items match search or category.</p></div>';
     } else if (viewMode === 'compact') {
-      contentHtml = renderCompactView(filtered, true, isOut);
+      contentHtml = renderCompactView(filtered, true, isOut, ev.presetId);
     } else if (viewMode === 'grid') {
-      contentHtml = renderGridView(filtered);
+      contentHtml = renderGridView(paginatedLines, ev.presetId);
     } else {
-      contentHtml = '<div class="list">' + renderCardsView(filtered, true, isOut) + '</div>';
+      contentHtml = '<div class="list">' + renderCardsView(paginatedLines, true, isOut, ev.presetId) + '</div>';
     }
+
+    var paginationHtml = (viewMode !== 'compact' && filtered.length > 0) ? U.paginationBar({
+      page: page,
+      totalPages: totalPages,
+      pageSize: pageSize,
+      prevAct: 'cat-prev-page',
+      nextAct: 'cat-next-page',
+      sizeAct: 'cat-change-page-size'
+    }) : '';
 
     var bottomActions = isStaging ? (
       '<button type="button" class="btn btn-primary mt12" data-act="mark-loaded">' +
         U.icon('check', 'mr4') + ' Van is loaded \u2014 Lock it in' +
       '</button>' +
-      '<button type="button" class="btn btn-ghost mt8" data-act="export-manifest-text" style="min-height:38px;font-size:12.5px">' +
-        U.icon('edit', 'mr4') + ' Export to text' +
-      '</button>' +
+      '<div class="row mt8" style="gap:6px">' +
+        '<button type="button" class="btn btn-ghost grow mr4 btn-sm" data-act="stage-all-inventory" style="min-height:38px;font-size:11.5px">' +
+          U.icon('package', 'mr4') + ' Stage all stock' +
+        '</button>' +
+        '<button type="button" class="btn btn-ghost grow btn-sm" data-act="export-manifest-text" style="min-height:38px;font-size:11.5px">' +
+          U.icon('edit', 'mr4') + ' Export text' +
+        '</button>' +
+      '</div>' +
       '<button type="button" class="btn btn-danger mt8 mb16" data-act="cancel-event">Cancel this event</button>'
     ) : (
       '<button type="button" class="btn btn-primary mt12" data-act="goto-packdown">' +
         U.icon('check', 'mr4') + ' Continue Pack Down' +
       '</button>' +
       '<div class="row mt8 mb16" style="gap:6px">' +
-        '<button type="button" class="btn btn-ghost grow btn-sm" data-act="export-manifest-text" style="min-height:38px;font-size:12px">' +
+        '<button type="button" class="btn btn-ghost grow btn-sm mr4" data-act="export-manifest-text" style="min-height:38px;font-size:12px">' +
           U.icon('edit', 'mr4') + ' Export text' +
         '</button>' +
         '<button type="button" class="btn btn-ghost grow btn-sm" data-act="revert-to-staging" style="min-height:38px;font-size:12px">' +
@@ -571,7 +804,7 @@ App.Views.catering = (function () {
       '</div>'
     );
 
-    return liveNotice + presetAlertBanner + headerBtns + searchBarHtml + contentHtml + bottomActions;
+    return liveNotice + shortageAlertBanner + presetAlertBanner + headerBtns + searchBarHtml + contentHtml + paginationHtml + bottomActions;
   }
 
   function crewTab(ev) {
@@ -613,23 +846,65 @@ App.Views.catering = (function () {
         : U.empty('users', 'No crew assigned', 'Assign staff from your directory to track who is working this job.'));
   }
 
-  function backTab(ev) {
-    if (!ev.lines.length) return U.empty('plate', 'Nothing was loaded', 'This event went out empty.');
-
-    var durableLines = ev.lines.filter(function (l) { return !l.isConsumable; });
-    var consumableLines = ev.lines.filter(function (l) { return !!l.isConsumable; });
-
-    if (onlyShort) {
-      durableLines = durableLines.filter(function (l) { return l.back < l.out; });
-      consumableLines = [];
-    }
-
-    function durableRow(l) {
+  /* ==========================================================================
+     Pack-Down View Renderers (Cards / Category-Safe Compact / Grid)
+     ========================================================================== */
+  function renderPackCardsView(lines) {
+    return lines.map(function (l) {
       var it = S.item(l.itemId);
       var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
       var cat = it ? S.category(it.categoryId) : null;
-      var short = l.out - l.back;
       var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Loreto');
+      var isConsumable = !!l.isConsumable;
+      var short = l.out - l.back;
+
+      if (isConsumable) {
+        var used = l.out - l.back;
+        var statusHtml = '';
+        if (l.back === l.out) {
+          statusHtml = '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>';
+        } else if (l.back === 0) {
+          statusHtml = '<span style="color:var(--timber-soft);font-size:12px;font-weight:700">All ' + l.out + ' used</span>';
+        } else {
+          statusHtml = '<span style="color:var(--timber-soft);font-size:11.5px"><strong>' + l.back + '</strong> back &middot; <strong>' + used + '</strong> used</span>';
+        }
+
+        return '<div class="pack-row done" id="row-' + l.itemId + '" style="border-left:3.5px solid var(--gold, #D49B42)">' +
+          '<div class="row row-between" style="align-items:flex-start">' +
+            '<div class="row grow mr8" style="min-width:0">' +
+              '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + l.itemId + '">' +
+                (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+              '</span>' +
+              '<div class="grow pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
+                '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(l.name) + '</span>' +
+                '<div class="pack-tags-wrap">' +
+                  U.tag(brandLabel, l.tagColor || 'yellow') +
+                  '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' +
+                  '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="pack-count" id="cnt-' + l.itemId + '" style="text-align:right;flex-shrink:0;margin-left:4px">' +
+              statusHtml +
+            '</div>' +
+          '</div>' +
+          '<div class="row row-between mt8">' +
+            '<div class="row">' +
+              '<button type="button" class="btn btn-ghost btn-sm mr6" data-act="consumable-all-used" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px">' +
+                'All used' +
+              '</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px;color:var(--foliage);font-weight:700">' +
+                'All back' +
+              '</button>' +
+            '</div>' +
+            '<div class="stepper">' +
+              '<button type="button" class="step-btn" data-act="back-minus" data-id="' + l.itemId + '">' + U.icon('minus') + '</button>' +
+              '<input type="number" inputmode="numeric" pattern="[0-9]*" class="step-num" data-act="back-input" data-id="' + l.itemId + '" value="' + l.back + '">' +
+              '<button type="button" class="step-btn" data-act="back-plus" data-id="' + l.itemId + '">' + U.icon('plus') + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }
 
       return '<div class="pack-row ' + (short === 0 ? 'done' : 'short') + '" id="row-' + l.itemId + '">' +
         '<div class="row row-between" style="align-items:flex-start">' +
@@ -661,76 +936,235 @@ App.Views.catering = (function () {
           '</div>' +
         '</div>' +
       '</div>';
-    }
+    }).join('');
+  }
 
-    function consumableRow(l) {
+  function renderPackCompactView(lines) {
+    var cats = S.categories();
+    var groups = {};
+    var uncat = [];
+
+    lines.forEach(function (l) {
       var it = S.item(l.itemId);
-      var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
-      var cat = it ? S.category(it.categoryId) : null;
-      var used = l.out - l.back;
-      var brandLabel = l.brand ? l.brand : (l.tagLabel || 'Supply');
-      var statusHtml = '';
-
-      if (l.back === l.out) {
-        statusHtml = '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>';
-      } else if (l.back === 0) {
-        statusHtml = '<span style="color:var(--timber-soft);font-size:12px;font-weight:700">All ' + l.out + ' used</span>';
+      var cId = it ? it.categoryId : '';
+      if (cId) {
+        if (!groups[cId]) groups[cId] = [];
+        groups[cId].push(l);
       } else {
-        statusHtml = '<span style="color:var(--timber-soft);font-size:11.5px"><strong>' + l.back + '</strong> back &middot; <strong>' + used + '</strong> used</span>';
+        uncat.push(l);
       }
+    });
 
-      return '<div class="pack-row done" id="row-' + l.itemId + '" style="border-left:3.5px solid var(--gold, #D49B42)">' +
-        '<div class="row row-between" style="align-items:flex-start">' +
-          '<div class="row grow mr8" style="min-width:0">' +
-            '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + l.itemId + '">' +
-              (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
-            '</span>' +
-            '<div class="grow pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
-              '<span class="item-name" style="word-break:break-word;line-height:1.25">' + U.esc(l.name) + '</span>' +
-              '<div class="pack-tags-wrap">' +
-                U.tag(brandLabel, l.tagColor || 'yellow') +
-                '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' +
-                '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + '</span>' +
-              '</div>' +
+    var html = '';
+
+    cats.forEach(function (c) {
+      var cLines = groups[c.id];
+      if (!cLines || !cLines.length) return;
+
+      var isOpen = openAccordions[c.id] !== false;
+      var limit = catPageLimits[c.id] || 10;
+      var visibleLines = cLines.slice(0, limit);
+      var hasMore = cLines.length > limit;
+
+      var rowsHtml = visibleLines.map(function (l) {
+        var isConsumable = !!l.isConsumable;
+        var short = l.out - l.back;
+        var statusClass = isConsumable ? 'done' : (short === 0 ? 'done' : 'short');
+
+        return '<div class="compact-item-row ' + statusClass + '" id="row-compact-' + l.itemId + '">' +
+          '<div class="compact-item-info" data-act="open-pack-modal" data-id="' + l.itemId + '">' +
+            '<div class="compact-item-name truncate">' + U.esc(l.name) + '</div>' +
+            '<div class="compact-item-meta">' +
+              (isConsumable
+                ? '<span class="tag tag-yellow" style="font-size:9.5px">' + l.back + '/' + l.out + ' back</span>'
+                : (short === 0
+                    ? '<strong style="color:var(--success);font-size:11px">All ' + l.out + ' back</strong>'
+                    : '<span style="color:var(--alert);font-size:11px;font-weight:700">' + short + ' missing</span>')) +
             '</div>' +
           '</div>' +
-          '<div class="pack-count" id="cnt-' + l.itemId + '" style="text-align:right;flex-shrink:0;margin-left:4px">' +
-            statusHtml +
+          '<div class="row" style="flex-shrink:0">' +
+            '<button type="button" class="btn btn-ghost btn-sm mr4" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:2px 8px;font-size:11.5px;color:var(--foliage)">' +
+              'All' +
+            '</button>' +
+            '<div class="stepper">' +
+              '<button type="button" class="step-btn" data-act="back-minus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('minus') + '</button>' +
+              '<span style="font-size:14px;font-weight:700;min-width:30px;text-align:center">' + l.back + '</span>' +
+              '<button type="button" class="step-btn" data-act="back-plus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('plus') + '</button>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-        '<div class="row row-between mt8">' +
+        '</div>';
+      }).join('');
+
+      var moreBtn = hasMore ? (
+        '<div class="row row-between mt4" style="padding:4px 6px">' +
+          '<span class="muted" style="font-size:11px">Showing ' + limit + ' of ' + cLines.length + '</span>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="expand-cat-limit" data-id="' + c.id + '" style="width:auto;min-height:28px;padding:1px 8px;font-size:11px">' +
+            '+ Show more' +
+          '</button>' +
+        '</div>'
+      ) : '';
+
+      html += '<div class="cat-accordion ' + (isOpen ? 'open' : '') + '" id="cat-acc-' + c.id + '">' +
+        '<button type="button" class="cat-accordion-head" data-act="toggle-cat-acc" data-id="' + c.id + '">' +
+          '<span class="cat-accordion-title">' +
+            U.icon(c.icon || 'plate') +
+            '<span>' + U.esc(c.name) + '</span>' +
+            '<span class="cat-accordion-badge">' + cLines.length + '</span>' +
+          '</span>' +
+          U.icon('chevronDown', 'cat-accordion-chevron') +
+        '</button>' +
+        '<div class="cat-accordion-body">' + rowsHtml + moreBtn + '</div>' +
+      '</div>';
+    });
+
+    if (uncat.length) {
+      var isOpenUncat = openAccordions['uncat'] !== false;
+      var uncatRows = uncat.map(function (l) {
+        var short = l.out - l.back;
+        var statusClass = l.isConsumable ? 'done' : (short === 0 ? 'done' : 'short');
+        return '<div class="compact-item-row ' + statusClass + '">' +
+          '<div class="compact-item-info" data-act="open-pack-modal" data-id="' + l.itemId + '">' +
+            '<div class="compact-item-name truncate">' + U.esc(l.name) + '</div>' +
+            '<div class="compact-item-meta">' +
+              (short === 0 ? '<strong style="color:var(--success);font-size:11px">All back</strong>' : '<span style="color:var(--alert);font-size:11px;font-weight:700">' + short + ' missing</span>') +
+            '</div>' +
+          '</div>' +
           '<div class="row">' +
-            '<button type="button" class="btn btn-ghost btn-sm mr6" data-act="consumable-all-used" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px">' +
-              'All used' +
-            '</button>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:3px 9px;font-size:11.5px;color:var(--foliage);font-weight:700">' +
-              'All back' +
-            '</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm mr4" data-act="all-back" data-id="' + l.itemId + '" style="width:auto;min-height:34px;padding:2px 8px;font-size:11.5px;color:var(--foliage)">All</button>' +
+            '<div class="stepper">' +
+              '<button type="button" class="step-btn" data-act="back-minus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('minus') + '</button>' +
+              '<span style="font-size:14px;font-weight:700;min-width:30px;text-align:center">' + l.back + '</span>' +
+              '<button type="button" class="step-btn" data-act="back-plus" data-id="' + l.itemId + '" style="width:34px;height:34px">' + U.icon('plus') + '</button>' +
+            '</div>' +
           '</div>' +
-          '<div class="stepper">' +
-            '<button type="button" class="step-btn" data-act="back-minus" data-id="' + l.itemId + '">' + U.icon('minus') + '</button>' +
-            '<input type="number" inputmode="numeric" pattern="[0-9]*" class="step-num" data-act="back-input" data-id="' + l.itemId + '" value="' + l.back + '">' +
-            '<button type="button" class="step-btn" data-act="back-plus" data-id="' + l.itemId + '">' + U.icon('plus') + '</button>' +
-          '</div>' +
-        '</div>' +
+        '</div>';
+      }).join('');
+
+      html += '<div class="cat-accordion ' + (isOpenUncat ? 'open' : '') + '" id="cat-acc-uncat">' +
+        '<button type="button" class="cat-accordion-head" data-act="toggle-cat-acc" data-id="uncat">' +
+          '<span class="cat-accordion-title"><span>Uncategorised</span><span class="cat-accordion-badge">' + uncat.length + '</span></span>' +
+          U.icon('chevronDown', 'cat-accordion-chevron') +
+        '</button>' +
+        '<div class="cat-accordion-body">' + uncatRows + '</div>' +
       '</div>';
     }
 
-    var durableHtml = durableLines.length ? (
-      '<div class="list mb12">' + durableLines.map(durableRow).join('') + '</div>'
-    ) : (onlyShort ? '<div class="empty mb12"><p class="muted">All reusable gear accounted for.</p></div>' : '');
+    return html;
+  }
 
-    var consumableHtml = (!onlyShort && consumableLines.length) ? (
-      '<div class="mt16 mb8">' +
-        '<h2 class="section-title mb4" style="font-size:13px;text-transform:uppercase;letter-spacing:.04em">' +
-          U.icon('sparkles') + ' Consumables & Supplies (' + consumableLines.length + ')' +
-        '</h2>' +
-        '<p class="muted mb8" style="font-size:11.5px">Log unused items brought back vs supplies consumed on site.</p>' +
-        '<div class="list mb12">' + consumableLines.map(consumableRow).join('') + '</div>' +
-      '</div>'
-    ) : '';
+  function renderPackGridView(lines) {
+    var tiles = lines.map(function (l) {
+      var it = S.item(l.itemId);
+      var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
+      var cat = it ? S.category(it.categoryId) : null;
+      var isConsumable = !!l.isConsumable;
+      var short = l.out - l.back;
 
-    return '<div class="row row-between mb8">' +
+      var pillHtml = '';
+      if (isConsumable) {
+        pillHtml = '<div class="grid-staged-pill supply truncate">' + l.back + '/' + l.out + ' back</div>';
+      } else if (short === 0) {
+        pillHtml = '<div class="grid-staged-pill done truncate">' + U.icon('check', 'mr4') + 'All back</div>';
+      } else {
+        pillHtml = '<div class="grid-staged-pill short truncate">' + short + ' missing</div>';
+      }
+
+      return '<div class="grid-item-card" data-act="open-pack-modal" data-id="' + l.itemId + '">' +
+        '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
+          (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+          '<span class="grid-qty-badge">' + l.back + '/' + l.out + '</span>' +
+        '</div>' +
+        '<div class="grid-title">' + U.esc(l.name) + '</div>' +
+        pillHtml +
+      '</div>';
+    }).join('');
+
+    return '<div class="ecommerce-grid">' + tiles + '</div>';
+  }
+
+  function openPackReturnModal(itemId) {
+    var ev = S.activeEvent();
+    if (!ev) return;
+    var line = null;
+    ev.lines.forEach(function (l) { if (l.itemId === itemId) line = l; });
+    if (!line) return;
+
+    var it = S.item(itemId);
+    var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
+    var cat = it ? S.category(it.categoryId) : null;
+    var isConsumable = !!line.isConsumable;
+    var brandLabel = line.brand || line.tagLabel || 'Loreto';
+
+    var html =
+      '<div class="quick-qty-modal">' +
+        '<div class="row mb12" style="align-items:flex-start">' +
+          '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + line.itemId + '" style="width:48px;height:48px;flex:0 0 48px;margin-right:10px">' +
+            (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+          '</span>' +
+          '<div class="grow">' +
+            '<h3 style="font-size:16px;font-weight:700;color:var(--timber-ink);line-height:1.25">' + U.esc(line.name) + '</h3>' +
+            '<div class="row mt4" style="flex-wrap:wrap;gap:4px">' +
+              U.tag(brandLabel, line.tagColor) +
+              (isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
+              '<span class="muted ml4" style="font-size:11.5px">' + line.out + ' ' + U.esc(line.unit) + ' in van</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="card mb12" style="text-align:center;padding:16px 12px">' +
+          '<label style="font-size:12px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;display:block;margin-bottom:8px">Pieces Returned / Recovered</label>' +
+          '<div class="row" style="justify-content:center;align-items:center">' +
+            '<div class="stepper" style="transform:scale(1.15)">' +
+              '<button type="button" class="step-btn" data-act="modal-pack-delta" data-delta="-1">' + U.icon('minus') + '</button>' +
+              '<input type="number" inputmode="numeric" pattern="[0-9]*" class="step-num" id="modal-pack-input" value="' + line.back + '">' +
+              '<button type="button" class="step-btn" data-act="modal-pack-delta" data-delta="1">' + U.icon('plus') + '</button>' +
+            '</div>' +
+            '<button type="button" class="btn-max" data-act="modal-pack-set" data-val="' + line.out + '">All (' + line.out + ')</button>' +
+          '</div>' +
+
+          '<div class="quick-qty-pills mt12">' +
+            '<button type="button" data-act="modal-pack-delta" data-delta="1">+1</button>' +
+            '<button type="button" data-act="modal-pack-delta" data-delta="5">+5</button>' +
+            (isConsumable ? '<button type="button" data-act="modal-pack-set" data-val="0" style="color:var(--alert);font-weight:700">All used</button>' : '') +
+            '<button type="button" data-act="modal-pack-set" data-val="' + line.out + '" style="color:var(--foliage);font-weight:700">All ' + line.out + ' back</button>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="sheet-sticky-footer">' +
+          '<button type="button" class="btn btn-primary mb8" data-act="modal-pack-save" data-id="' + line.itemId + '" data-max="' + line.out + '">' +
+            'Save Return Count' +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost" data-act="sheet-close">Cancel</button>' +
+        '</div>' +
+      '</div>';
+
+    var body = U.openSheet('Update Returns: ' + line.name, html, onAct);
+    U.hydrateThumbs(body);
+  }
+
+  function backTab(ev) {
+    if (!ev.lines.length) return U.empty('plate', 'Nothing was loaded', 'This event went out empty.');
+
+    var filtered = getFilteredBackLines(ev.lines);
+
+    // Global pagination only applies to Cards and Grid views
+    totalPages = Math.ceil(filtered.length / pageSize) || 1;
+    if (page > totalPages) page = totalPages;
+    if (page < 1) page = 1;
+
+    var startIdx = (page - 1) * pageSize;
+    var endIdx = Math.min(startIdx + pageSize, filtered.length);
+    var paginatedLines = filtered.slice(startIdx, endIdx);
+
+    var cats = S.categories();
+    var catChips = '<button type="button" class="chip' + (loadCat ? '' : ' on') + '" data-act="filter-load-cat" data-id="">All</button>' +
+      cats.map(function (c) {
+        return '<button type="button" class="chip' + (loadCat === c.id ? ' on' : '') + '" data-act="filter-load-cat" data-id="' + c.id + '">' +
+          U.esc(c.name) + '</button>';
+      }).join('');
+
+    var filterControls =
+      '<div class="row row-between mb8">' +
         '<button type="button" class="chip' + (onlyShort ? ' on' : '') + '" data-act="toggle-short">' +
           U.icon('alert') + ' Only missing gear' +
         '</button>' +
@@ -739,6 +1173,44 @@ App.Views.catering = (function () {
         '</button>' +
       '</div>' +
 
+      '<div class="search mb8">' +
+        U.icon('search', 'search-icon') +
+        '<input class="input" id="catering-search" type="search" placeholder="Search gear in pack down..." value="' + U.esc(loadQ) + '">' +
+      '</div>' +
+      '<div class="chips filter-bar mb8">' + catChips + '</div>' +
+
+      '<div class="row row-between mb8">' +
+        '<span class="muted" style="font-size:11px">' +
+          (viewMode === 'compact'
+            ? filtered.length + ' item types in categories'
+            : (filtered.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + filtered.length + ' pieces' : '0 items')) +
+        '</span>' +
+        U.viewModeToggle(viewMode, 'set-view-mode') +
+      '</div>';
+
+    var contentHtml = '';
+    if (!filtered.length) {
+      contentHtml = '<div class="empty mb12"><p class="muted">' +
+        (onlyShort ? 'All reusable equipment accounted for!' : 'No items match your filter.') +
+      '</p></div>';
+    } else if (viewMode === 'compact') {
+      contentHtml = renderPackCompactView(filtered);
+    } else if (viewMode === 'grid') {
+      contentHtml = renderPackGridView(paginatedLines);
+    } else {
+      contentHtml = '<div class="list mb12">' + renderPackCardsView(paginatedLines) + '</div>';
+    }
+
+    var paginationHtml = (viewMode !== 'compact' && filtered.length > 0) ? U.paginationBar({
+      page: page,
+      totalPages: totalPages,
+      pageSize: pageSize,
+      prevAct: 'cat-prev-page',
+      nextAct: 'cat-next-page',
+      sizeAct: 'cat-change-page-size'
+    }) : '';
+
+    return filterControls +
       '<div class="row row-between mb12" style="background:var(--sand-card);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px">' +
         '<span class="muted" style="font-size:12px">Need to add extra gear on site?</span>' +
         '<button type="button" class="btn btn-ghost btn-sm" data-act="open-checklist" style="width:auto;min-height:32px;padding:2px 10px;font-size:11.5px">' +
@@ -746,9 +1218,8 @@ App.Views.catering = (function () {
         '</button>' +
       '</div>' +
 
-      (durableLines.length ? '<h2 class="section-title mb4" style="font-size:13px;text-transform:uppercase;letter-spacing:.04em">' + U.icon('truck') + ' Reusable Equipment (' + durableLines.length + ')</h2>' : '') +
-      durableHtml +
-      consumableHtml +
+      contentHtml +
+      paginationHtml +
 
       '<button type="button" class="btn btn-primary mt12" data-act="close-event">' +
         U.icon('check', 'mr4') + ' Finish this event' +
@@ -870,6 +1341,7 @@ App.Views.catering = (function () {
     if (cSearch) {
       cSearch.addEventListener('input', function () {
         loadQ = cSearch.value;
+        page = 1;
         var pos = cSearch.selectionStart;
         App.rerenderQuiet();
         var reFocus = document.getElementById('catering-search');
@@ -946,7 +1418,6 @@ App.Views.catering = (function () {
     U.hydrateThumbs(body);
   }
 
-  /* Quick Quantity Pop-up Modal with MAX Button & in-checklist return support */
   function openQtyModal(itemId, returnToChecklist) {
     activeQtyModalReturnToChecklist = !!returnToChecklist;
     var ev = S.activeEvent();
@@ -1143,8 +1614,8 @@ App.Views.catering = (function () {
     U.openSheet('Event Manifest (Text)', html, onAct);
   }
 
-  function openPresetInspector(presetId, isAddingToActiveEvent) {
-    var avail = S.checkPresetAvailability(presetId, isAddingToActiveEvent);
+  function openPresetInspector(presetId) {
+    var avail = S.checkPresetAvailability(presetId, false);
     if (!avail) return;
     var p = avail.preset;
     var ev = S.activeEvent();
@@ -1180,23 +1651,14 @@ App.Views.catering = (function () {
     var actionButtonsHtml = '';
     if (ev) {
       actionButtonsHtml =
-        '<button type="button" class="btn btn-primary mb8" data-act="apply-preset-merge" data-id="' + p.id + '" data-clamp="' + (!avail.available ? '1' : '0') + '">' +
-          U.icon('plus', 'mr4') + ' Add kit pieces into van (Merge)' +
-        '</button>' +
-        '<button type="button" class="btn btn-ghost mb8" data-act="apply-preset-replace" data-id="' + p.id + '" data-clamp="' + (!avail.available ? '1' : '0') + '">' +
-          U.icon('refresh', 'mr4') + ' Switch / Replace van load-out with this kit' +
+        '<button type="button" class="btn btn-primary mb8" data-act="confirm-switch-preset" data-id="' + p.id + '">' +
+          U.icon('refresh', 'mr4') + ' Switch van load to this kit' +
         '</button>';
     } else {
-      actionButtonsHtml = !avail.available
-        ? '<button type="button" class="btn btn-primary" data-act="apply-preset-clamped" data-id="' + p.id + '">' +
-            U.icon('check', 'mr4') + ' Start event with kit (Auto-clamp)' +
-          '</button>' +
-          '<button type="button" class="btn btn-ghost mt8" data-act="apply-preset-full" data-id="' + p.id + '">' +
-            'Start event with full kit (Ignore shortfall)' +
-          '</button>'
-        : '<button type="button" class="btn btn-primary" data-act="apply-preset-full" data-id="' + p.id + '">' +
-            U.icon('truck', 'mr4') + ' Start event with full kit' +
-          '</button>';
+      actionButtonsHtml =
+        '<button type="button" class="btn btn-primary" data-act="apply-preset-start" data-id="' + p.id + '">' +
+          U.icon('truck', 'mr4') + ' Start event with this kit' +
+        '</button>';
     }
 
     var html =
@@ -1389,29 +1851,20 @@ App.Views.catering = (function () {
     U.hydrateThumbs(body);
   }
 
+  /* Master Event Delegation Handler */
   function onAct(act, el) {
     var ev = S.activeEvent();
     var id = el ? el.getAttribute('data-id') : '';
 
-    /* Lightbox Photo Handler */
-    if (act === 'thumb-click') {
-      viewItemPhoto(id);
-      return;
-    }
+    if (act === 'thumb-click') { viewItemPhoto(id); return; }
+    if (act === 'inspect-item') { openItemDetail(id); return; }
 
-    if (act === 'inspect-item') {
-      openItemDetail(id);
-      return;
-    }
-
-    /* View Switcher */
     if (act === 'set-view-mode') {
       viewMode = el.getAttribute('data-mode') || 'cards';
       App.rerenderQuiet();
       return;
     }
 
-    /* Collapsible Accordion Toggle */
     if (act === 'toggle-cat-acc') {
       var accEl = document.getElementById('cat-acc-' + id);
       if (accEl) {
@@ -1422,28 +1875,213 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Catering Page Filter by Category */
-    if (act === 'filter-load-cat') {
-      loadCat = id;
+    if (act === 'expand-cat-limit') {
+      catPageLimits[id] = (catPageLimits[id] || 10) + 15;
       App.rerenderQuiet();
       return;
     }
 
-    /* Quick Quantity Modal Triggers */
-    if (act === 'open-qty-modal') {
-      openQtyModal(id, false);
-      return;
-    }
-    if (act === 'open-qty-modal-chk') {
-      openQtyModal(id, true);
-      return;
-    }
-    if (act === 'cancel-to-chk') {
-      openGearChecklist();
+    if (act === 'filter-load-cat') {
+      loadCat = id;
+      page = 1;
+      App.rerenderQuiet();
       return;
     }
 
-    /* Quantity Modal Stepper Actions */
+    if (act === 'cat-prev-page') {
+      if (page > 1) {
+        page--;
+        App.rerenderQuiet();
+        var vPrev = document.getElementById('view');
+        if (vPrev) vPrev.scrollTop = 0;
+      }
+      return;
+    }
+    if (act === 'cat-next-page') {
+      if (page < totalPages) {
+        page++;
+        App.rerenderQuiet();
+        var vNext = document.getElementById('view');
+        if (vNext) vNext.scrollTop = 0;
+      }
+      return;
+    }
+    if (act === 'cat-change-page-size') {
+      var sz = parseInt(el.getAttribute('data-size'), 10);
+      if (sz && sz !== pageSize) {
+        pageSize = sz;
+        page = 1;
+        App.rerenderQuiet();
+        var vEl = document.getElementById('view');
+        if (vEl) vEl.scrollTop = 0;
+      }
+      return;
+    }
+
+    /* Kit Preset Picker & Switching Flow */
+    if (act === 'open-kit-picker') {
+      openKitPickerSheet(ev, false);
+      return;
+    }
+    if (act === 'open-preset-options') {
+      openPresetOptionsSheet(ev);
+      return;
+    }
+    if (act === 'pick-preset-to-switch') {
+      openKitPickerSheet(ev, true);
+      return;
+    }
+
+    if (act === 'select-initial-preset') {
+      var pToLoad = S.preset(id);
+      if (!pToLoad) return;
+
+      function doInitialLoad() {
+        S.applyPresetToEvent(ev, id, 'replace', false);
+        U.closeSheet();
+        tab = 'load';
+        page = 1;
+        App.rerenderQuiet();
+        U.toast('Kit "' + pToLoad.name + '" loaded into van.');
+      }
+
+      if (ev.lines && ev.lines.length > 0) {
+        U.confirm('Load Kit Preset?',
+          'Loading this kit will replace current staged items with the "' + pToLoad.name + '" kit template.',
+          'Load Kit',
+          doInitialLoad
+        );
+      } else {
+        doInitialLoad();
+      }
+      return;
+    }
+
+    if (act === 'confirm-switch-preset') {
+      var pTarget = S.preset(id);
+      if (!pTarget) return;
+
+      U.confirm('Switch to ' + pTarget.name + '?',
+        'Switching kits will discard any current van customizations and replace your load with this kit.',
+        'Switch Kit',
+        function () {
+          S.applyPresetToEvent(ev, id, 'replace', false);
+          U.closeSheet();
+          tab = 'load';
+          page = 1;
+          App.rerenderQuiet();
+          U.toast('Switched van load to "' + pTarget.name + '".');
+        }
+      );
+      return;
+    }
+
+    /* Discard Changes & Revert to OG Preset */
+    if (act === 'revert-preset-changes') {
+      if (!ev.presetId) return;
+      var loadedP = S.preset(ev.presetId);
+      var kitName = loadedP ? loadedP.name : 'preset';
+
+      U.confirm('Discard changes & revert?',
+        'This will discard all customizations and restore the van load to match the original "' + kitName + '" template.',
+        'Revert Kit',
+        function () {
+          S.applyPresetToEvent(ev, ev.presetId, 'replace', false);
+          U.closeSheet();
+          tab = 'load';
+          page = 1;
+          App.rerenderQuiet();
+          U.toast('Reverted to original "' + kitName + '" kit.');
+        }
+      );
+      return;
+    }
+
+    /* Update Existing Preset with Current Van Load */
+    if (act === 'update-current-preset') {
+      var updatedKit = S.updatePresetFromEvent(ev, id || ev.presetId);
+      U.closeSheet();
+      App.rerenderQuiet();
+      U.toast('Kit preset "' + (updatedKit ? updatedKit.name : 'preset') + '" updated with current load.');
+      return;
+    }
+
+    /* Save Current Load as Brand New Preset */
+    if (act === 'prompt-save-new-preset') {
+      promptSaveNewPreset(ev);
+      return;
+    }
+    if (act === 'confirm-save-new-preset') {
+      var newPName = ((document.getElementById('new-p-name') || {}).value || '').trim();
+      var newPNote = ((document.getElementById('new-p-note') || {}).value || '').trim();
+      if (!newPName) { U.toast('Give the new preset a name.'); return; }
+      var createdKit = S.savePresetFromEvent(ev, newPName, newPNote);
+      U.closeSheet();
+      App.rerenderQuiet();
+      U.toast('New kit preset "' + createdKit.name + '" saved.');
+      return;
+    }
+
+    /* Stage 100% of Inventory Actions */
+    if (act === 'stage-all-inventory') {
+      U.confirm('Stage 100% of Inventory?',
+        'This will load every item with available stock in your commissary into this event.',
+        'Stage all stock',
+        function () {
+          var all = S.items();
+          all.forEach(function (it) {
+            if (it.qty > 0) {
+              S.setOut(ev, it.id, it.qty);
+            }
+          });
+          tab = 'load';
+          page = 1;
+          App.rerenderQuiet();
+          U.toast('All commissary stock staged into van (' + ev.lines.length + ' item types).');
+        }
+      );
+      return;
+    }
+    if (act === 'new-event-all-stock') {
+      var nev = S.createEvent({
+        name: 'Full Inventory Booking ' + U.fmtDate(U.today()),
+        date: U.today()
+      });
+      var allItems = S.items();
+      allItems.forEach(function (it) {
+        if (it.qty > 0) {
+          S.setOut(nev, it.id, it.qty);
+        }
+      });
+      tab = 'load';
+      page = 1;
+      App.rerenderQuiet();
+      U.toast('Full inventory staged into new booking.');
+      return;
+    }
+
+    /* Auto-clamp items that exceed inventory stock */
+    if (act === 'auto-clamp-stock') {
+      ev.lines.forEach(function (l) {
+        var it = S.item(l.itemId);
+        var owned = it ? (it.qty || 0) : 0;
+        if (l.out > owned) {
+          l.out = owned;
+          if (l.back > l.out) l.back = l.out;
+        }
+      });
+      ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
+      S.save();
+      App.rerenderQuiet();
+      U.toast('Staged quantities capped to inventory stock.');
+      return;
+    }
+
+    /* Load-out Quantity Modal Actions */
+    if (act === 'open-qty-modal') { openQtyModal(id, false); return; }
+    if (act === 'open-qty-modal-chk') { openQtyModal(id, true); return; }
+    if (act === 'cancel-to-chk') { openGearChecklist(); return; }
+
     if (act === 'modal-qty-delta') {
       var delta = parseInt(el.getAttribute('data-delta'), 10) || 0;
       var qInput = document.getElementById('modal-qty-input');
@@ -1456,9 +2094,7 @@ App.Views.catering = (function () {
     if (act === 'modal-qty-set') {
       var setVal = parseInt(el.getAttribute('data-val'), 10) || 0;
       var qInputSet = document.getElementById('modal-qty-input');
-      if (qInputSet) {
-        qInputSet.value = setVal;
-      }
+      if (qInputSet) qInputSet.value = setVal;
       return;
     }
     if (act === 'modal-qty-save') {
@@ -1489,7 +2125,35 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Add Items (Checklist) Filters & Done Action */
+    /* Pack-down Return Modal Handlers */
+    if (act === 'open-pack-modal') { openPackReturnModal(id); return; }
+    if (act === 'modal-pack-delta') {
+      var pDelta = parseInt(el.getAttribute('data-delta'), 10) || 0;
+      var pInput = document.getElementById('modal-pack-input');
+      if (pInput) {
+        var curVal = parseInt(pInput.value, 10) || 0;
+        pInput.value = Math.max(0, curVal + pDelta);
+      }
+      return;
+    }
+    if (act === 'modal-pack-set') {
+      var pSetVal = parseInt(el.getAttribute('data-val'), 10) || 0;
+      var pInputDirect = document.getElementById('modal-pack-input');
+      if (pInputDirect) pInputDirect.value = pSetVal;
+      return;
+    }
+    if (act === 'modal-pack-save') {
+      var pSaveInput = document.getElementById('modal-pack-input');
+      var pMax = parseInt(el.getAttribute('data-max'), 10) || 9999;
+      var finalReturnQty = Math.min(pMax, Math.max(0, parseInt(pSaveInput ? pSaveInput.value : 0, 10) || 0));
+      S.setBack(ev, id, finalReturnQty);
+      U.closeSheet();
+      App.rerenderQuiet();
+      U.toast('Return count updated.');
+      return;
+    }
+
+    /* Checklist Actions */
     if (act === 'chk-filter') {
       chkFilter = el.getAttribute('data-filter') || 'unadded';
       var allTabs = document.querySelectorAll('.seg button[data-act="chk-filter"]');
@@ -1515,59 +2179,21 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Kit Preset Options & Sync Actions */
-    if (act === 'open-preset-options') {
-      openPresetOptionsSheet(ev);
-      return;
-    }
-    if (act === 'update-current-preset') {
-      var updatedKit = S.updatePresetFromEvent(ev, id);
-      U.closeSheet();
-      App.rerenderQuiet();
-      U.toast('Kit preset "' + (updatedKit ? updatedKit.name : 'preset') + '" updated with current van load.');
-      return;
-    }
-    if (act === 'prompt-save-new-preset') {
-      promptSaveNewPreset(ev);
-      return;
-    }
-    if (act === 'confirm-save-new-preset') {
-      var newPName = ((document.getElementById('new-p-name') || {}).value || '').trim();
-      var newPNote = ((document.getElementById('new-p-note') || {}).value || '').trim();
-      if (!newPName) { U.toast('Give the new preset a name.'); return; }
-      var createdKit = S.savePresetFromEvent(ev, newPName, newPNote);
-      U.closeSheet();
-      App.rerenderQuiet();
-      U.toast('New kit preset "' + createdKit.name + '" saved.');
-      return;
-    }
-    if (act === 'pick-preset-load-inner') {
-      var presets = S.presets();
-      U.openSheet('Select Kit Preset to Add',
-        '<div class="list mb12">' + presets.map(function (p) {
-          return '<button type="button" class="item" data-act="inspect-preset-add" data-id="' + p.id + '">' +
-            '<span class="thumb">' + U.icon('layers') + '</span>' +
-            '<span class="grow"><span class="item-name">' + U.esc(p.name) + '</span>' +
-            '<span class="item-sub">' + p.lines.length + ' kinds included</span></span>' +
-            '<span class="item-qty">' + U.icon('chevronRight') + '</span></button>';
-        }).join('') + '</div>' +
-        '<button type="button" class="btn btn-ghost" data-act="open-preset-options">Back</button>', onAct);
-      return;
-    }
-
     if (act === 'goto-packdown') {
       tab = 'back';
+      page = 1;
       App.rerenderQuiet();
       return;
     }
 
     if (act === 'revert-to-staging') {
       U.confirm('Re-stage van load-out',
-        'Move this booking back to Staging mode? Use this if van departures are delayed or you need to re-verify the full load.',
+        'Move this booking back to Staging mode? Use this if departures are delayed or you need to re-verify the full load.',
         'Re-stage van',
         function () {
           S.returnToStaging(ev);
           tab = 'load';
+          page = 1;
           App.rerenderQuiet();
           U.toast('Event returned to staging mode.');
         }
@@ -1578,14 +2204,9 @@ App.Views.catering = (function () {
     if (act === 'manage-presets') { openPresetManagerSheet(); return; }
     if (act === 'new-preset') { openPresetEditor(null); return; }
     if (act === 'edit-preset-catering') { openPresetEditor(id); return; }
-    if (act === 'inspect-preset') { openPresetInspector(id, false); return; }
-    if (act === 'inspect-preset-add') { openPresetInspector(id, true); return; }
+    if (act === 'inspect-preset') { openPresetInspector(id); return; }
 
-    /* Plain Text Export */
-    if (act === 'export-manifest-text') {
-      openTextManifest(ev);
-      return;
-    }
+    if (act === 'export-manifest-text') { openTextManifest(ev); return; }
     if (act === 'copy-manifest-clipboard') {
       var box = document.getElementById('manifest-text-box');
       if (box) {
@@ -1606,7 +2227,6 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Preset Editor Actions */
     if (act === 'p-add-gear') {
       var selBox = document.getElementById('p-add-select');
       var addId = selBox ? selBox.value : '';
@@ -1648,14 +2268,12 @@ App.Views.catering = (function () {
       if (!kitName) { U.toast('Give this kit a name.'); return; }
       editingPreset.name = kitName;
       editingPreset.note = ((document.getElementById('p-note') || {}).value || '').trim();
-
       S.savePreset(editingPreset);
       U.toast('Kit preset saved.');
       openPresetManagerSheet();
       App.rerenderQuiet();
       return;
     }
-
     if (act === 'del-preset-catering') {
       U.confirm('Delete kit preset', 'Remove this preset bundle from your list?', 'Delete', function () {
         S.removePreset(id);
@@ -1666,42 +2284,8 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Apply Preset Actions */
-    if (act === 'apply-preset-merge') {
-      var clampMerge = (el.getAttribute('data-clamp') === '1');
-      S.applyPresetToEvent(ev, id, 'merge', clampMerge);
-      U.closeSheet();
-      tab = 'load';
-      App.rerenderQuiet();
-      U.toast('Kit items merged into van load.');
-      return;
-    }
-    if (act === 'apply-preset-replace') {
-      var clampReplace = (el.getAttribute('data-clamp') === '1');
-      U.confirm('Replace van load-out?',
-        'This will replace current items with this kit preset. Retained items keep their returns.',
-        'Replace load-out',
-        function () {
-          S.applyPresetToEvent(ev, id, 'replace', clampReplace);
-          U.closeSheet();
-          tab = 'load';
-          App.rerenderQuiet();
-          U.toast('Van load-out replaced with kit.');
-        }
-      );
-      return;
-    }
-    if (act === 'apply-preset-clamped' || act === 'apply-preset-full') {
-      var clamp = (act === 'apply-preset-clamped');
-      if (ev) {
-        S.applyPresetToEvent(ev, id, 'merge', clamp);
-        U.closeSheet();
-        tab = 'load';
-        App.rerenderQuiet();
-        U.toast('Kit items added to van.');
-      } else {
-        eventForm(null, id, clamp);
-      }
+    if (act === 'apply-preset-start') {
+      eventForm(null, id, false);
       return;
     }
 
@@ -1718,6 +2302,7 @@ App.Views.catering = (function () {
         clamp: !!el.getAttribute('data-clamp')
       });
       tab = 'load';
+      page = 1;
       U.closeSheet();
       App.rerenderQuiet();
       U.toast(nev.lines.length ? 'Kit loaded into van. Check counts.' : 'Event started.');
@@ -1739,13 +2324,11 @@ App.Views.catering = (function () {
 
     if (act === 'tab') {
       tab = id;
+      page = 1;
       App.rerenderQuiet();
       return;
     }
 
-    if (act === 'open-checklist') { chkQ = ''; chkCat = ''; chkFilter = 'unadded'; openGearChecklist(); return; }
-
-    /* Staged Quantities Live Adjustments */
     if (act === 'out-plus' || act === 'out-minus') {
       var outLine = null;
       ev.lines.forEach(function (l) { if (l.itemId === id) outLine = l; });
@@ -1784,7 +2367,6 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Pack-Down Returns */
     if (act === 'back-plus' || act === 'back-minus' || act === 'all-back') {
       var bLine = null;
       ev.lines.forEach(function (l) { if (l.itemId === id) bLine = l; });
@@ -1807,6 +2389,7 @@ App.Views.catering = (function () {
     }
     if (act === 'toggle-short') {
       onlyShort = !onlyShort;
+      page = 1;
       App.rerenderQuiet();
       return;
     }
@@ -1829,6 +2412,7 @@ App.Views.catering = (function () {
       }
       S.markLoaded(ev);
       tab = 'back';
+      page = 1;
       App.rerenderQuiet();
       U.toast('Van locked. Ready for the event.');
       return;
@@ -1837,13 +2421,13 @@ App.Views.catering = (function () {
     if (act === 'cancel-event') {
       U.confirm('Cancel event', 'Discard the staged van load-out completely?', 'Cancel event', function () {
         S.removeEvent(ev.id);
+        page = 1;
         App.rerenderQuiet();
         U.toast('Event cancelled.');
       });
       return;
     }
 
-    /* Staff Assignment */
     if (act === 'open-staff-picker') { openStaffPicker(); return; }
     if (act === 'toggle-staff-assign') {
       var isAssigned = (ev.staffIds || []).indexOf(id) > -1;
@@ -1917,7 +2501,6 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* Event Closure */
     if (act === 'close-event') {
       var t = S.tally(ev);
       var missingDurable = ev.lines.filter(function (l) { return !l.isConsumable && l.out > l.back; });
@@ -1974,6 +2557,7 @@ App.Views.catering = (function () {
       var res = S.closeEvent(ev, !!(dCheck && dCheck.checked), cCheck ? cCheck.checked : true);
       U.closeSheet();
       tab = 'load';
+      page = 1;
       App.rerenderQuiet();
       U.toast(res.pct + '% gear recovered. Event closed.');
       return;
@@ -1990,6 +2574,8 @@ App.Views.catering = (function () {
     openPresetManagerSheet: openPresetManagerSheet,
     viewItemPhoto: viewItemPhoto,
     openQtyModal: openQtyModal,
-    openPresetOptionsSheet: openPresetOptionsSheet
+    openPackReturnModal: openPackReturnModal,
+    openPresetOptionsSheet: openPresetOptionsSheet,
+    openKitPickerSheet: openKitPickerSheet
   };
 })();
