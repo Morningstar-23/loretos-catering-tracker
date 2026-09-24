@@ -157,6 +157,46 @@ App.Views.catering = (function () {
     }
   }
 
+  /* Inline "‹ 1 / 3 ›" pager that lives in the list header (same data-acts as before) */
+  function miniPager(opts) {
+    if ((opts.totalPages || 1) <= 1) return '';
+    return '<div class="mini-pager">' +
+      '<button type="button" class="mini-pager-btn" data-act="' + opts.prevAct + '"' + (opts.page <= 1 ? ' disabled' : '') + ' aria-label="Previous page">' + U.icon('chevronLeft') + '</button>' +
+      '<span class="mini-pager-info"><b>' + opts.page + '</b> / ' + opts.totalPages + '</span>' +
+      '<button type="button" class="mini-pager-btn" data-act="' + opts.nextAct + '"' + (opts.page >= opts.totalPages ? ' disabled' : '') + ' aria-label="Next page">' + U.icon('chevronRight') + '</button>' +
+    '</div>';
+  }
+
+  function chipsHtml() {
+    return '<button type="button" class="chip' + (loadCat ? '' : ' on') + '" data-act="filter-load-cat" data-id="">All</button>' +
+      S.categories().map(function (c) {
+        return '<button type="button" class="chip' + (loadCat === c.id ? ' on' : '') + '" data-act="filter-load-cat" data-id="' + c.id + '">' +
+          U.icon(c.icon || 'plate') + U.esc(c.name) +
+        '</button>';
+      }).join('');
+  }
+
+  /* search + view switch on one row, category chips, then "N item types · Reset · pager" */
+  function listControls(placeholder, filteredCount, hasActiveFilters) {
+    var resetBtn = hasActiveFilters
+      ? '<button type="button" class="btn-reset-filters" data-act="reset-all-filters" title="Clear all filters">' + U.icon('refresh') + 'Reset</button>'
+      : '';
+    var pager = (viewMode !== 'compact')
+      ? miniPager({ page: page, totalPages: totalPages, prevAct: 'top-prev-page', nextAct: 'top-next-page' })
+      : '';
+
+    return '<div class="cat-toolbar">' +
+        '<div class="search">' + U.icon('search', 'search-icon') + '<input class="input" id="catering-search" type="search" placeholder="' + placeholder + '" value="' + U.esc(loadQ) + '"></div>' +
+        U.viewModeToggle(viewMode, 'set-view-mode', gridCols, 'set-grid-cols') +
+      '</div>' +
+      '<div class="chips filter-bar" id="catering-cat-chips">' + chipsHtml() + '</div>' +
+      '<div class="cat-list-head">' +
+        '<span class="cat-list-count truncate">' + filteredCount + ' item type' + (filteredCount === 1 ? '' : 's') + '</span>' +
+        resetBtn + pager +
+      '</div>' +
+      '<div id="catering-list-anchor"></div>';
+  }
+
   function getActiveShortages(ev) {
     if (!ev || !ev.lines) return [];
     var list = [];
@@ -247,73 +287,45 @@ App.Views.catering = (function () {
       onlyWarnings = false;
     }
 
-    var kitBtnTitle = p
-      ? (U.esc(p.name) + (isModified ? ' *' : ''))
+    var kitName = p
+      ? U.esc(p.name)
       : (hasVanLines ? 'Save as Kit (' + ev.lines.length + ')' : 'Select Kit Preset');
-
-    var kitSubLabel = p
-      ? (isModified ? 'Customized' : 'Active Kit')
-      : (hasVanLines ? 'Manual Load' : 'Presets');
-
+    var kitCap = p
+      ? (isModified ? 'Customized' : 'Active kit')
+      : (hasVanLines ? 'Manual load' : 'Presets');
     var presetAction = (p || hasVanLines) ? 'open-preset-options' : 'open-kit-picker';
 
-    /* Non-truncating kit preset header badge */
-    var headerBtns = '<div class="row row-between mb8" style="gap:6px">' +
-      '<button type="button" class="btn btn-primary btn-sm" data-act="open-checklist" style="flex:0.85;min-width:0;padding:0 8px;font-size:12px;height:auto;min-height:38px">' +
-        U.icon('plus', 'mr4') + ' Add items' +
+    /* Kit selector (looks like a select) + the one primary action */
+    var actionRow = '<div class="cat-actions">' +
+      '<button type="button" class="cat-kit" data-act="' + presetAction + '">' +
+        '<span class="cat-kit-ico">' + U.icon('layers') + '</span>' +
+        '<span class="cat-kit-body"><span class="cat-kit-cap' + (isModified ? ' is-edited' : '') + '">' + kitCap + '</span><span class="cat-kit-name">' + kitName + '</span></span>' +
+        U.icon('chevronDown', 'cat-kit-chev') +
       '</button>' +
-      '<button type="button" class="btn btn-ghost btn-sm kit-header-btn" data-act="' + presetAction + '">' +
-        '<span style="display:flex;align-items:center;min-width:0;width:100%">' +
-          U.icon('layers', 'mr6') +
-          '<span class="grow" style="min-width:0">' +
-            '<span class="muted" style="display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:0.03em;line-height:1;margin-bottom:2px">' + kitSubLabel + '</span>' +
-            '<span class="kit-header-name">' + kitBtnTitle + '</span>' +
-          '</span>' +
-        '</span>' +
-      '</button>' +
+      '<button type="button" class="cat-add" data-act="open-checklist">' + U.icon('plus') + '<span>Add items</span></button>' +
     '</div>';
 
-    var liveNotice = isOut ? '<div class="live-edit-banner"><h4>' + U.icon('truck') + ' Live In-Field Load-out</h4><p>Adjust counts or add items. Returns sync automatically.</p></div>' : '';
+    var liveNotice = isOut
+      ? '<div class="live-edit-banner cat-live"><h4>' + U.icon('truck') + ' Live in-field load-out</h4><p>Adjust counts or add items. Returns sync automatically.</p></div>'
+      : '';
 
-    /* Interactive Shortage Alert Banner */
-    var shortageBanner = shortages.length > 0 ? (
-      '<div class="card mb8" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:9px 11px">' +
-        '<div class="row row-between" style="gap:8px">' +
-          '<div class="grow" data-act="toggle-load-warnings" style="cursor:pointer;min-width:0">' +
-            '<div class="row" style="color:var(--alert);font-size:12px;font-weight:700">' +
-              U.icon('alertTriangle', 'mr4') +
-              '<span>' + shortages.length + ' item' + (shortages.length === 1 ? '' : 's') + ' exceed stock</span>' +
-            '</div>' +
-            '<div class="muted mt2" style="font-size:10.5px;color:var(--alert);opacity:0.88">' +
-              (onlyWarnings ? 'Tap to view all staged gear' : 'Tap to filter only warned items') +
-            '</div>' +
-          '</div>' +
-          '<div class="row" style="gap:5px;flex-shrink:0">' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="toggle-load-warnings" style="width:auto;min-height:30px;padding:2px 8px;font-size:11px;border-color:rgba(214,57,32,0.35);color:var(--alert)">' +
-              (onlyWarnings ? 'Show all' : 'Filter') +
-            '</button>' +
-            '<button type="button" class="btn btn-danger btn-sm" data-act="auto-clamp-stock" style="width:auto;min-height:30px;padding:2px 8px;font-size:11px">Cap stock</button>' +
-          '</div>' +
+    /* ONE stock-alert strip (replaces the old banner + separate "Only warnings" chip) */
+    var n = shortages.length;
+    var alertStrip = n > 0 ? (
+      '<div class="cat-alert' + (onlyWarnings ? ' on' : '') + '">' +
+        '<div class="cat-alert-msg" data-act="toggle-load-warnings">' + U.icon('alertTriangle') +
+          '<span>' + (onlyWarnings ? 'Showing ' + n + ' over stock' : n + ' over stock') + '</span>' +
         '</div>' +
+        '<button type="button" class="cat-alert-btn ghost" data-act="toggle-load-warnings">' + (onlyWarnings ? 'Show all' : 'Filter') + '</button>' +
+        '<button type="button" class="cat-alert-btn solid" data-act="auto-clamp-stock">Cap stock</button>' +
       '</div>'
     ) : '';
 
     if (!ev.lines.length) {
-      return liveNotice + headerBtns + U.empty('truck', 'Nothing loaded yet', 'Search gear, load a kit preset, or stage all stock.',
-        '<div class="row" style="gap:6px">' +
-          '<button type="button" class="btn btn-primary grow mr4" data-act="open-checklist">' + U.icon('plus', 'mr4') + ' Add items</button>' +
-          '<button type="button" class="btn btn-ghost grow mr4" data-act="open-kit-picker">' + U.icon('layers', 'mr4') + ' Kit</button>' +
-          '<button type="button" class="btn btn-ghost grow" data-act="stage-all-inventory">' + U.icon('package', 'mr4') + ' All stock</button>' +
-        '</div>'
+      return liveNotice + actionRow + U.empty('truck', 'Nothing loaded yet', 'Search gear, load a kit preset, or stage all stock.',
+        '<button type="button" class="btn btn-ghost cat-empty-btn" data-act="stage-all-inventory">' + U.icon('package', 'mr6') + ' Stage all stock</button>'
       );
     }
-
-    var catChips = '<button type="button" class="chip' + (loadCat ? '' : ' on') + '" data-act="filter-load-cat" data-id="">All</button>' +
-      S.categories().map(function (c) {
-        return '<button type="button" class="chip' + (loadCat === c.id ? ' on' : '') + '" data-act="filter-load-cat" data-id="' + c.id + '">' +
-          U.icon(c.icon || 'plate') + ' ' + U.esc(c.name) +
-        '</button>';
-      }).join('');
 
     var filtered = getFilteredLines(ev.lines);
     totalPages = Math.ceil(filtered.length / pageSize) || 1;
@@ -323,43 +335,8 @@ App.Views.catering = (function () {
     var startIdx = (page - 1) * pageSize;
     var paginatedLines = filtered.slice(startIdx, Math.min(startIdx + pageSize, filtered.length));
 
-    /* Warning Filter Control Row */
-    var warningFilterBar = shortages.length > 0 ? (
-      '<div class="row row-between mb8" style="gap:6px">' +
-        '<button type="button" class="chip' + (onlyWarnings ? ' on' : '') + '" data-act="toggle-load-warnings" style="margin-right:0">' +
-          U.icon('alertTriangle', 'mr4') + (onlyWarnings ? 'Show all van items' : 'Only warnings (' + shortages.length + ')') +
-        '</button>' +
-        (onlyWarnings ? '<span class="muted" style="font-size:11px;font-weight:700;color:var(--alert)">Filtered to stock alerts</span>' : '') +
-      '</div>'
-    ) : '';
-
-    /* Active Filter Status & Reset Control */
     var hasActiveFilters = !!(loadCat || (loadQ && loadQ.trim()) || onlyWarnings);
-    var resetBtn = hasActiveFilters ? (
-      '<button type="button" class="btn-reset-filters" data-act="reset-all-filters" title="Clear all filters">' +
-        U.icon('refresh', 'mr4') + 'Reset' +
-      '</button>'
-    ) : '';
-
-    var viewModeBar = '<div class="row row-between mb8">' +
-      '<div class="row" style="min-width:0;flex-shrink:1;gap:4px">' +
-        resetBtn +
-        '<span class="muted truncate" style="font-size:11px">' + filtered.length + ' item types' + (hasActiveFilters ? ' (filtered)' : '') + '</span>' +
-      '</div>' +
-      U.viewModeToggle(viewMode, 'set-view-mode', gridCols, 'set-grid-cols') +
-    '</div>';
-
-    /* Top Pagination Component */
-    var topPagination = (viewMode !== 'compact')
-      ? U.topPaginationBar({ page: page, totalPages: totalPages, count: filtered.length, prevAct: 'top-prev-page', nextAct: 'top-next-page' })
-      : '';
-
-    var searchBar = warningFilterBar +
-      '<div class="search mb8">' + U.icon('search', 'search-icon') + '<input class="input" id="catering-search" type="search" placeholder="Search loaded gear..." value="' + U.esc(loadQ) + '"></div>' +
-      '<div class="chips filter-bar mb8" id="catering-cat-chips">' + catChips + '</div>' +
-      viewModeBar +
-      topPagination +
-      '<div id="catering-list-anchor"></div>';
+    var controls = listControls('Search gear', filtered.length, hasActiveFilters);
 
     var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyWarnings ? 'No items exceeding stock match this filter.' : 'No matching items.') + '</p></div>'
       : (viewMode === 'compact' ? Views.renderCompactView(filtered, isOut, ev.presetId, openAccordions, catPages)
@@ -376,22 +353,26 @@ App.Views.catering = (function () {
       : '';
 
     var bottomActions = isStaging ? (
-      '<button type="button" class="btn btn-primary mt12" data-act="mark-loaded">' + U.icon('check', 'mr4') + ' Van is loaded \u2014 Lock it in</button>' +
-      '<div class="row mt8" style="gap:6px">' +
-        '<button type="button" class="btn btn-ghost grow mr4 btn-sm" data-act="stage-all-inventory">' + U.icon('package', 'mr4') + ' Stage all stock</button>' +
-        '<button type="button" class="btn btn-ghost grow btn-sm mr4" data-act="clear-all-lines" style="color:var(--alert)">' + U.icon('trash', 'mr4') + ' Empty van</button>' +
-        '<button type="button" class="btn btn-ghost grow btn-sm" data-act="export-manifest-text">' + U.icon('edit', 'mr4') + ' Export</button>' +
-      '</div>' +
-      '<button type="button" class="btn btn-danger mt8 mb16" data-act="cancel-event">Cancel this event</button>'
+      '<div class="cat-cta">' +
+        '<button type="button" class="btn btn-primary cat-cta-main" data-act="mark-loaded">' + U.icon('check', 'mr6') + ' Van is loaded &mdash; Lock it in</button>' +
+        '<div class="cat-tools">' +
+          '<button type="button" class="cat-tool" data-act="stage-all-inventory">' + U.icon('package') + '<span>Stage all stock</span></button>' +
+          '<button type="button" class="cat-tool is-danger" data-act="clear-all-lines">' + U.icon('trash') + '<span>Empty van</span></button>' +
+          '<button type="button" class="cat-tool" data-act="export-manifest-text">' + U.icon('share') + '<span>Export</span></button>' +
+        '</div>' +
+        '<button type="button" class="cat-cancel" data-act="cancel-event">Cancel this event</button>' +
+      '</div>'
     ) : (
-      '<button type="button" class="btn btn-primary mt12" data-act="goto-packdown">' + U.icon('check', 'mr4') + ' Continue Pack Down</button>' +
-      '<div class="row mt8 mb16" style="gap:6px">' +
-        '<button type="button" class="btn btn-ghost grow btn-sm mr4" data-act="export-manifest-text">' + U.icon('edit', 'mr4') + ' Export text</button>' +
-        '<button type="button" class="btn btn-ghost grow btn-sm" data-act="revert-to-staging">' + U.icon('refresh', 'mr4') + ' Re-stage van</button>' +
+      '<div class="cat-cta">' +
+        '<button type="button" class="btn btn-primary cat-cta-main" data-act="goto-packdown">' + U.icon('check', 'mr6') + ' Continue pack down</button>' +
+        '<div class="cat-tools">' +
+          '<button type="button" class="cat-tool" data-act="export-manifest-text">' + U.icon('share') + '<span>Export text</span></button>' +
+          '<button type="button" class="cat-tool" data-act="revert-to-staging">' + U.icon('refresh') + '<span>Re-stage van</span></button>' +
+        '</div>' +
       '</div>'
     );
 
-    return liveNotice + shortageBanner + headerBtns + searchBar + content + pagination + bottomActions;
+    return liveNotice + alertStrip + actionRow + controls + content + pagination + bottomActions;
   }
 
   function backTab(ev) {
@@ -405,47 +386,24 @@ App.Views.catering = (function () {
     var startIdx = (page - 1) * pageSize;
     var paginatedLines = filtered.slice(startIdx, Math.min(startIdx + pageSize, filtered.length));
 
-    var catChips = '<button type="button" class="chip' + (loadCat ? '' : ' on') + '" data-act="filter-load-cat" data-id="">All</button>' +
-      S.categories().map(function (c) {
-        return '<button type="button" class="chip' + (loadCat === c.id ? ' on' : '') + '" data-act="filter-load-cat" data-id="' + c.id + '">' +
-          U.icon(c.icon || 'plate') + ' ' + U.esc(c.name) +
-        '</button>';
-      }).join('');
-
     var hasActiveFilters = !!(loadCat || (loadQ && loadQ.trim()) || onlyShort);
-    var resetBtn = hasActiveFilters ? (
-      '<button type="button" class="btn-reset-filters" data-act="reset-all-filters" title="Clear all filters">' +
-        U.icon('refresh', 'mr4') + 'Reset' +
-      '</button>'
-    ) : '';
 
-    var viewModeBar = '<div class="row row-between mb8">' +
-      '<div class="row" style="min-width:0;flex-shrink:1;gap:4px">' +
-        resetBtn +
-        '<span class="muted truncate" style="font-size:11px">' + filtered.length + ' item types' + (hasActiveFilters ? ' (filtered)' : '') + '</span>' +
-      '</div>' +
-      U.viewModeToggle(viewMode, 'set-view-mode', gridCols, 'set-grid-cols') +
+    var quickBar = '<div class="cat-quick2">' +
+      '<button type="button" class="cat-qchip' + (onlyShort ? ' on' : '') + '" data-act="toggle-short">' + U.icon('alertTriangle') + '<span>Only missing</span></button>' +
+      '<button type="button" class="cat-qchip" data-act="all-back-gear">' + U.icon('check') + '<span>Mark all gear back</span></button>' +
     '</div>';
 
-    var topPagination = (viewMode !== 'compact')
-      ? U.topPaginationBar({ page: page, totalPages: totalPages, count: filtered.length, prevAct: 'top-prev-page', nextAct: 'top-next-page' })
-      : '';
+    var onsite = '<div class="cat-onsite">' +
+      '<span>Need extra gear on site?</span>' +
+      '<button type="button" class="cat-onsite-btn" data-act="open-checklist">' + U.icon('plus') + 'Add items</button>' +
+    '</div>';
 
-    var filterControls = '<div class="row row-between mb8">' +
-      '<button type="button" class="chip' + (onlyShort ? ' on' : '') + '" data-act="toggle-short">' + U.icon('alertTriangle', 'mr4') + ' Only missing</button>' +
-      '<button type="button" class="chip" data-act="all-back-gear">' + U.icon('check', 'mr4') + ' Mark all gear back</button>' +
-    '</div>' +
-    '<div class="search mb8">' + U.icon('search', 'search-icon') + '<input class="input" id="catering-search" type="search" placeholder="Search gear..." value="' + U.esc(loadQ) + '">' +
-    '</div>' +
-    '<div class="chips filter-bar mb8" id="catering-cat-chips">' + catChips + '</div>' +
-    viewModeBar +
-    topPagination +
-    '<div id="catering-list-anchor"></div>';
+    var controls = listControls('Search gear', filtered.length, hasActiveFilters);
 
     var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyShort ? 'All equipment returned!' : 'No items match filter.') + '</p></div>'
       : (viewMode === 'compact' ? Views.renderPackCompactView(filtered, openAccordions, catPages)
       : (viewMode === 'grid' ? Views.renderPackGridView(paginatedLines, gridCols)
-      : '<div class="list mb12">' + Views.renderPackCardsView(paginatedLines) + '</div>'));
+      : '<div class="list">' + Views.renderPackCardsView(paginatedLines) + '</div>'));
 
     var animWrapClass = viewModeSwitchAnim ? ' view-content-enter' : '';
     viewModeSwitchAnim = false;
@@ -455,14 +413,11 @@ App.Views.catering = (function () {
       ? U.paginationBar({ page: page, totalPages: totalPages, pageSize: pageSize, prevAct: 'cat-prev-page', nextAct: 'cat-next-page', sizeAct: 'cat-change-page-size' })
       : '';
 
-    return filterControls +
-      '<div class="row row-between mb12" style="background:var(--sand-card);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px">' +
-        '<span class="muted" style="font-size:12px">Need to add extra gear on site?</span>' +
-        '<button type="button" class="btn btn-ghost btn-sm" data-act="open-checklist" style="width:auto;min-height:32px;padding:2px 10px;font-size:11.5px">' + U.icon('plus', 'mr4') + ' Add items</button>' +
-      '</div>' +
-      content + pagination +
-      '<button type="button" class="btn btn-primary mt12" data-act="close-event">' + U.icon('check', 'mr4') + ' Finish this event</button>' +
-      '<button type="button" class="btn btn-ghost mt8 mb16" data-act="export-manifest-text" style="min-height:38px;font-size:12.5px">' + U.icon('edit', 'mr4') + ' Export to text</button>';
+    return quickBar + onsite + controls + content + pagination +
+      '<div class="cat-cta">' +
+        '<button type="button" class="btn btn-primary cat-cta-main" data-act="close-event">' + U.icon('check', 'mr6') + ' Finish this event</button>' +
+        '<button type="button" class="btn btn-ghost cat-ghost" data-act="export-manifest-text">' + U.icon('share', 'mr6') + ' Export to text</button>' +
+      '</div>';
   }
 
   function render() {
@@ -474,7 +429,7 @@ App.Views.catering = (function () {
     var animClass = (lastRenderedTab !== tab) ? ' tab-pane-enter list-stagger' : '';
     lastRenderedTab = tab;
 
-    return Views.head(ev) + Views.segs(ev, tab) + '<div class="catering-tab-pane' + animClass + '">' + body + '</div>';
+    return Views.head(ev, tab) + '<div class="catering-tab-pane' + animClass + '">' + body + '</div>';
   }
 
   /* Robust Bidirectional Swipe Engine */
