@@ -1,14 +1,19 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Inventory (js/views/inventory.js)
+   - Universal "Items per category" picker (adjust all categories at once)
+   - Independent In-Place Per-Category Accordion Pagination (2, 3, 5, 10, All)
+   - Full accurate category counts on accordion badges
    - Direct 2-way routing to Catering: "Return to Catering Load-out" action
    - Lightbox modal integration: tap gear photo to enlarge with zoom badge
-   - Reusable Icon View Switcher (Cards / Compact Accordion / 3-Col Grid)
-   - Reusable Pagination Bar with Page Size selector (5, 10, 15, 25 items)
-   - Category scroll lock: exact scrollLeft position preserved without moving
+   - Animated Magic-Pill Glider Switcher (Cards / Compact Accordion / Grid)
+   - Dedicated Grid Density Toolbar (2 wide, 3 col, 4 dense)
+   - Synchronous in-memory photo caching (zero flash on re-renders)
+   - Universal Pagination Bar for Cards & Grid views
+   - Category scroll lock: exact scrollLeft position preserved
    - In-place custom dropdowns (Stock & Sort) with spring animation
    - 3D Spring sort direction toggle (Ascending / Descending)
-   - Dynamic "Reset filters" button
-   - Full Item Stats modal with gig usage trend chart & stock audit controls
+   - Refined Edit Modal: Aligned Brand/Unit fields & styled Photo drop-zone
+   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -17,13 +22,21 @@ App.Views.inventory = (function () {
   var U = App.UI, S = App.Store;
   var q = '', cat = '', sortField = 'alpha', sortDir = 'asc', stockFilter = 'all';
   var viewMode = 'cards';
+  var gridCols = 2;
+  var viewModeSwitchAnim = false;
+  var lastViewModeGliderState = null;
   var openAccordions = {};
+  var catPages = {}; // Independent page state per category
+  var catPageSize = 5; // Universal items per category (defaults to 3 for instant 2-page pagination)
   var page = 1;
-  var pageSize = 10;
+  var pageSize = 5;
   var totalPages = 1;
   var chipsScrollLeft = 0;
   var docListenerAttached = false;
   var openedFromCatering = false;
+
+  /* In-memory photo cache to eliminate async thumbnail popping */
+  var photoCache = {};
 
   var pendingPhoto = null, editingId = null;
   var selectedTagColor = 'orange', selectedCategoryId = '';
@@ -58,6 +71,72 @@ App.Views.inventory = (function () {
     return '<button type="button" class="topbar-btn" data-act="add-item" aria-label="Add new gear">' +
       U.icon('plus') + '<span>Add</span>' +
     '</button>';
+  }
+
+  /* Instantaneous thumbnail hydration from cache or IndexedDB */
+  function hydrateThumbsFast(root) {
+    var doc = root || document;
+    var thumbNodes = doc.querySelectorAll('[data-photo]');
+    for (var i = 0; i < thumbNodes.length; i++) {
+      var node = thumbNodes[i];
+      var key = node.getAttribute('data-photo');
+      if (!key) continue;
+
+      if (photoCache[key]) {
+        node.style.backgroundImage = 'url(' + photoCache[key] + ')';
+        node.style.backgroundSize = 'cover';
+        node.style.backgroundPosition = 'center';
+      } else if (App.DB) {
+        (function (n, k) {
+          App.DB.get(k).then(function (blobUrl) {
+            if (blobUrl) {
+              photoCache[k] = blobUrl;
+              n.style.backgroundImage = 'url(' + blobUrl + ')';
+              n.style.backgroundSize = 'cover';
+              n.style.backgroundPosition = 'center';
+            }
+          });
+        })(node, key);
+      }
+    }
+  }
+
+  /* Animated "Magic Pill" Background Glider Engine */
+  function updateGlider(root) {
+    var doc = root || document;
+    var viewContainer = doc.querySelector('.view-mode-animated');
+    if (!viewContainer) return;
+
+    var viewGlider = viewContainer.querySelector('.view-mode-glider');
+    var viewActive = viewContainer.querySelector('.view-mode-btn.on, button.on');
+    if (!viewGlider || !viewActive) return;
+
+    var vTargetX = viewActive.offsetLeft;
+    var vTargetW = viewActive.offsetWidth || 32;
+
+    if (typeof vTargetX !== 'number' || isNaN(vTargetX) || vTargetX === 0) {
+      var modeAttr = viewActive.getAttribute('data-mode') || viewMode;
+      vTargetX = (modeAttr === 'grid') ? 66 : (modeAttr === 'compact' ? 34 : 2);
+    }
+
+    if (lastViewModeGliderState && (lastViewModeGliderState.x !== vTargetX || lastViewModeGliderState.w !== vTargetW)) {
+      viewGlider.style.transition = 'none';
+      viewGlider.style.transform = 'translate3d(' + lastViewModeGliderState.x + 'px, 0, 0)';
+      viewGlider.style.width = lastViewModeGliderState.w + 'px';
+      void viewGlider.offsetWidth; // Force reflow
+
+      requestAnimationFrame(function () {
+        viewGlider.style.transition = 'transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1)';
+        viewGlider.style.transform = 'translate3d(' + vTargetX + 'px, 0, 0)';
+        viewGlider.style.width = vTargetW + 'px';
+      });
+    } else {
+      viewGlider.style.transition = 'none';
+      viewGlider.style.transform = 'translate3d(' + vTargetX + 'px, 0, 0)';
+      viewGlider.style.width = vTargetW + 'px';
+    }
+
+    lastViewModeGliderState = { x: vTargetX, w: vTargetW };
   }
 
   function toggleDropdown(targetType, triggerEl) {
@@ -149,9 +228,9 @@ App.Views.inventory = (function () {
         '<span class="item-sub truncate">' +
           U.esc(c ? c.name : 'Uncategorised') + ' &middot; ' + U.esc(i.unit) +
         '</span>' +
-        '<span class="row mt4" style="flex-wrap:wrap;gap:4px">' +
+        '<span class="row mt4" style="flex-wrap:wrap">' +
           U.tag(brandLabel, i.tagColor) +
-          (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+          (isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
           stockBadge +
           (asOf ? '<span class="muted ml4" style="font-size:10.5px">As of ' + asOf + '</span>' : '') +
         '</span>' +
@@ -162,12 +241,13 @@ App.Views.inventory = (function () {
       '</button>';
   }
 
-  function renderCompactView(items) {
+  /* Compact View: True Category Totals + Universal Items-Per-Category Pagination */
+  function renderCompactView(allItems) {
     var cats = S.categories();
     var groups = {};
     var uncat = [];
 
-    items.forEach(function (it) {
+    allItems.forEach(function (it) {
       var cId = it.categoryId;
       if (cId) {
         if (!groups[cId]) groups[cId] = [];
@@ -177,6 +257,8 @@ App.Views.inventory = (function () {
       }
     });
 
+    var limit = parseInt(catPageSize, 10) || 5;
+    var isAll = limit >= 999;
     var html = '';
 
     cats.forEach(function (c) {
@@ -184,8 +266,15 @@ App.Views.inventory = (function () {
       if (!cItems || !cItems.length) return;
 
       var isOpen = openAccordions[c.id] !== false;
+      var cPage = (catPages && catPages[c.id]) || 1;
+      var cTotalPages = isAll ? 1 : (Math.ceil(cItems.length / limit) || 1);
+      if (cPage > cTotalPages) cPage = cTotalPages;
+      if (cPage < 1) cPage = 1;
 
-      var rowsHtml = cItems.map(function (it) {
+      var startIdx = isAll ? 0 : (cPage - 1) * limit;
+      var paginatedCItems = isAll ? cItems : cItems.slice(startIdx, startIdx + limit);
+
+      var rowsHtml = paginatedCItems.map(function (it) {
         var brandLabel = it.brand ? it.brand : (it.tagLabel || 'Loreto');
         var threshold = it.lowStockThreshold || 2;
         var curQty = it.qty || 0;
@@ -206,6 +295,17 @@ App.Views.inventory = (function () {
         '</div>';
       }).join('');
 
+      // Always show in-accordion pagination if not set to 'All'
+      var pagHtml = (!isAll) ? U.catAccordionPagination({
+        catId: c.id,
+        page: cPage,
+        totalPages: cTotalPages,
+        totalItems: cItems.length,
+        alwaysShow: true,
+        prevAct: 'inv-cat-acc-prev-page',
+        nextAct: 'inv-cat-acc-next-page'
+      }) : '';
+
       html += '<div class="cat-accordion ' + (isOpen ? 'open' : '') + '" id="inv-cat-acc-' + c.id + '">' +
         '<button type="button" class="cat-accordion-head" data-act="toggle-inv-cat-acc" data-id="' + c.id + '">' +
           '<span class="cat-accordion-title">' +
@@ -215,13 +315,19 @@ App.Views.inventory = (function () {
           '</span>' +
           U.icon('chevronDown', 'cat-accordion-chevron') +
         '</button>' +
-        '<div class="cat-accordion-body">' + rowsHtml + '</div>' +
+        '<div class="cat-accordion-body">' + rowsHtml + pagHtml + '</div>' +
       '</div>';
     });
 
     if (uncat.length) {
       var isOpenUncat = openAccordions['uncat'] !== false;
-      var uncatRows = uncat.map(function (it) {
+      var uncatPage = (catPages && catPages['uncat']) || 1;
+      var uncatTotalPages = isAll ? 1 : (Math.ceil(uncat.length / limit) || 1);
+      if (uncatPage > uncatTotalPages) uncatPage = uncatTotalPages;
+      if (uncatPage < 1) uncatPage = 1;
+
+      var uncatStart = isAll ? 0 : (uncatPage - 1) * limit;
+      var uncatRows = (isAll ? uncat : uncat.slice(uncatStart, uncatStart + limit)).map(function (it) {
         var curQty = it.qty || 0;
         return '<div class="compact-item-row" data-act="open-stats" data-id="' + it.id + '">' +
           '<div class="compact-item-info">' +
@@ -234,22 +340,36 @@ App.Views.inventory = (function () {
         '</div>';
       }).join('');
 
+      var uncatPagHtml = (!isAll) ? U.catAccordionPagination({
+        catId: 'uncat',
+        page: uncatPage,
+        totalPages: uncatTotalPages,
+        totalItems: uncat.length,
+        alwaysShow: true,
+        prevAct: 'inv-cat-acc-prev-page',
+        nextAct: 'inv-cat-acc-next-page'
+      }) : '';
+
       html += '<div class="cat-accordion ' + (isOpenUncat ? 'open' : '') + '" id="inv-cat-acc-uncat">' +
         '<button type="button" class="cat-accordion-head" data-act="toggle-inv-cat-acc" data-id="uncat">' +
           '<span class="cat-accordion-title"><span>Uncategorised</span><span class="cat-accordion-badge">' + uncat.length + '</span></span>' +
           U.icon('chevronDown', 'cat-accordion-chevron') +
         '</button>' +
-        '<div class="cat-accordion-body">' + uncatRows + '</div>' +
+        '<div class="cat-accordion-body">' + uncatRows + uncatPagHtml + '</div>' +
       '</div>';
     }
 
     return html;
   }
 
+  /* Fixed Responsive E-Commerce Grid (Matching Catering Mode) */
   function renderGridView(items) {
+    var cols = parseInt(gridCols, 10) || 2;
+    var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-inv-grid-cols') : '';
+
     var tiles = items.map(function (it) {
       var photoKey = it.photoId ? (it.photoId + '-t') : '';
-      var cat = S.category(it.categoryId);
+      var catObj = S.category(it.categoryId);
       var brandLabel = it.brand ? it.brand : (it.tagLabel || '');
       var threshold = it.lowStockThreshold || 2;
       var curQty = it.qty || 0;
@@ -265,8 +385,8 @@ App.Views.inventory = (function () {
 
       return '<div class="grid-item-card" data-act="open-stats" data-id="' + it.id + '">' +
         '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
-          (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
-          '<span class="grid-qty-badge">' + curQty + ' ' + U.esc(it.unit) + '</span>' +
+          (!photoKey ? U.icon(catObj ? catObj.icon : 'plate') : '') +
+          '<span class="grid-qty-badge">' + curQty + (cols >= 4 ? '' : ' ' + U.esc(it.unit)) + '</span>' +
         '</div>' +
         '<div class="grid-title">' + U.esc(it.name) + '</div>' +
         (brandLabel ? '<div class="grid-brand truncate">' + U.esc(brandLabel) + '</div>' : '') +
@@ -274,7 +394,7 @@ App.Views.inventory = (function () {
       '</div>';
     }).join('');
 
-    return '<div class="ecommerce-grid">' + tiles + '</div>';
+    return densityBar + '<div class="ecommerce-grid cols-' + cols + '">' + tiles + '</div>';
   }
 
   function render() {
@@ -285,7 +405,7 @@ App.Views.inventory = (function () {
     var sortBy = dirLocked ? 'mod-desc' : (sortField + '-' + sortDir);
     var list = S.searchItems(q, cat, sortBy, stockFilter);
 
-    // Pagination calculations
+    // Global Pagination calculations (used in Cards & Grid modes)
     totalPages = Math.ceil(list.length / pageSize) || 1;
     if (page > totalPages) page = totalPages;
     if (page < 1) page = 1;
@@ -312,29 +432,59 @@ App.Views.inventory = (function () {
       '</button>'
     ) : '';
 
-    var contentHtml = '';
-    if (!paginatedItems.length) {
-      contentHtml = U.empty('search', isFiltered ? 'No items match filter' : 'Inventory is empty',
+    var rawContent = '';
+    if (!list.length) {
+      rawContent = U.empty('search', isFiltered ? 'No items match filter' : 'Inventory is empty',
         isFiltered ? 'Try resetting filters or tap "All".' : 'Add your first trays, burners, or tables.',
         isFiltered
           ? '<button type="button" class="btn btn-primary btn-sm" data-act="reset-filters">' + U.icon('refresh', 'mr4') + ' Reset filters</button>'
           : '<button type="button" class="btn btn-primary" data-act="add-item">' + U.icon('plus', 'mr4') + ' Add first item</button>');
     } else if (viewMode === 'compact') {
-      contentHtml = renderCompactView(paginatedItems);
+      rawContent = renderCompactView(list);
     } else if (viewMode === 'grid') {
-      contentHtml = renderGridView(paginatedItems);
+      rawContent = renderGridView(paginatedItems);
     } else {
-      contentHtml = '<div class="list list-stagger">' + paginatedItems.map(cardRow).join('') + '</div>';
+      rawContent = '<div class="list list-stagger">' + paginatedItems.map(cardRow).join('') + '</div>';
     }
 
-    var paginationHtml = (list.length > 0) ? U.paginationBar({
-      page: page,
-      totalPages: totalPages,
-      pageSize: pageSize,
-      prevAct: 'inv-prev-page',
-      nextAct: 'inv-next-page',
-      sizeAct: 'change-page-size'
-    }) : '';
+    /* Wrap content with view mode switch entrance animation */
+    var animWrapClass = viewModeSwitchAnim ? ' view-content-enter' : '';
+    viewModeSwitchAnim = false;
+    var contentHtml = '<div class="inventory-view-wrap' + animWrapClass + '">' + rawContent + '</div>';
+
+    // Universal Bottom Bar:
+    // In Compact mode: Universal "Show per category: [ 2 | 3 | 5 | 10 | All ]"
+    // In Cards & Grid: Global Page Navigator with "Show per page: [ 5 | 10 | 15 | 25 ]"
+    var paginationHtml = '';
+    if (viewMode === 'compact' && list.length > 0) {
+      var catSizes = [2, 3, 5, 10, 'All'];
+      var sizePills = catSizes.map(function (sz) {
+        var isSel = (catPageSize === sz || (sz === 'All' && catPageSize >= 999));
+        var szVal = (sz === 'All') ? 999 : sz;
+        return '<button type="button" class="size-pill' + (isSel ? ' on' : '') + '" data-act="change-cat-page-size" data-size="' + szVal + '">' + sz + '</button>';
+      }).join('');
+
+      paginationHtml =
+        '<div class="pagination-bar" style="margin-top:12px;padding:12px 2px 20px 2px">' +
+          '<div class="pagination-size-wrap" style="margin-top:0">' +
+            '<span class="pagination-size-label">Show per category:</span>' +
+            '<div class="pagination-size-pills">' + sizePills + '</div>' +
+          '</div>' +
+        '</div>';
+    } else if (list.length > 0) {
+      paginationHtml = U.paginationBar({
+        page: page,
+        totalPages: totalPages,
+        pageSize: pageSize,
+        prevAct: 'inv-prev-page',
+        nextAct: 'inv-next-page',
+        sizeAct: 'change-page-size'
+      });
+    }
+
+    var countLabel = (viewMode === 'compact')
+      ? (list.length + ' item type' + (list.length === 1 ? '' : 's'))
+      : (list.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + list.length : '0 items');
 
     return '<div class="search">' +
         U.icon('search', 'search-icon') +
@@ -352,11 +502,9 @@ App.Views.inventory = (function () {
         '</button>' +
       '</div>' +
 
-      '<div class="row row-between mb8" style="padding:0 2px">' +
+      '<div class="inventory-toolbar-row">' +
         '<div class="row">' +
-          '<span class="muted mr6" style="font-size:11px">' +
-            (list.length ? 'Showing ' + (startIdx + 1) + '&ndash;' + endIdx + ' of ' + list.length : '0 items') +
-          '</span>' +
+          '<span class="inventory-count-label mr6">' + countLabel + '</span>' +
           resetBtnHtml +
         '</div>' +
         U.viewModeToggle(viewMode, 'set-inv-view-mode') +
@@ -367,9 +515,10 @@ App.Views.inventory = (function () {
   }
 
   function mounted(root) {
-    U.hydrateThumbs(root);
+    hydrateThumbsFast(root || document);
+    updateGlider(root || document);
 
-    var chipsEl = root.querySelector('.chips.filter-bar');
+    var chipsEl = (root || document).querySelector('.chips.filter-bar');
     if (chipsEl) {
       if (chipsScrollLeft > 0) {
         chipsEl.scrollLeft = chipsScrollLeft;
@@ -396,6 +545,7 @@ App.Views.inventory = (function () {
       input.addEventListener('input', function () {
         q = input.value;
         page = 1;
+        catPages = {};
         var pos = input.selectionStart;
         App.rerenderQuiet();
         var again = document.getElementById('inv-q');
@@ -472,14 +622,14 @@ App.Views.inventory = (function () {
             '<p class="muted mt2" style="font-size:12px">' +
               U.esc(c ? c.name : 'Uncategorised') + ' &middot; in ' + U.esc(it.unit) + 's' +
             '</p>' +
-            '<div class="row mt4" style="gap:4px;flex-wrap:wrap">' +
+            '<div class="row mt4" style="flex-wrap:wrap">' +
               U.tag(brandLabel, it.tagColor) +
-              (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+              (isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
               (it.tagLabel && it.brand ? '<span class="muted ml4" style="font-size:11px">' + U.esc(it.tagLabel) + '</span>' : '') +
             '</div>' +
             (it.photoId ? (
-              '<div class="row mt6" style="gap:6px">' +
-                '<button type="button" class="btn btn-ghost btn-sm" data-act="view-inv-photo" data-id="' + it.id + '" style="width:auto;min-height:28px;padding:2px 8px;font-size:11px">' +
+              '<div class="row mt6" style="margin-right:6px">' +
+                '<button type="button" class="btn btn-ghost btn-sm mr6" data-act="view-inv-photo" data-id="' + it.id + '" style="width:auto;min-height:28px;padding:2px 8px;font-size:11px">' +
                   U.icon('zoom', 'mr4') + 'Enlarge' +
                 '</button>' +
                 '<button type="button" class="btn btn-ghost btn-sm" data-act="dash-pick-photo" style="width:auto;min-height:28px;padding:2px 8px;font-size:11px">' +
@@ -565,7 +715,7 @@ App.Views.inventory = (function () {
       '<button type="button" class="btn btn-ghost mt8" data-act="sheet-close">Done</button>';
 
     var body = U.openSheet(it.name, html, onAct);
-    U.hydrateThumbs(body);
+    hydrateThumbsFast(body);
 
     var dFile = document.getElementById('dash-file');
     if (dFile) {
@@ -578,6 +728,8 @@ App.Views.inventory = (function () {
           it.photoId = pid;
           App.DB.set(pid, r.full);
           App.DB.set(pid + '-t', r.thumb);
+          photoCache[pid] = r.full;
+          photoCache[pid + '-t'] = r.thumb;
           S.saveItem(it);
           U.toast('Photo updated.');
           App.rerenderQuiet();
@@ -587,6 +739,7 @@ App.Views.inventory = (function () {
     }
   }
 
+  /* Refined Add & Edit Gear Modal (Aligned Fields & Dedicated Photo Drop Zone) */
   function openEditor(id) {
     ensureOthersCategory();
     var it = id ? S.item(id) : null;
@@ -597,40 +750,41 @@ App.Views.inventory = (function () {
     selectedIsConsumable = it ? !!it.isConsumable : false;
     var cats = S.categories();
 
+    // 1. Reusable Item Nature Toggle Bar
     var typeSelectorHtml =
-      '<div class="row mb8" style="gap:8px" id="type-selector">' +
-        '<button type="button" class="btn grow btn-sm ' + (!selectedIsConsumable ? 'btn-primary' : 'btn-ghost') + '" id="btn-type-durable" data-act="pick-item-type" data-type="durable" style="min-height:38px;font-size:12px">' +
-          U.icon('truck', 'mr4') + ' Reusable Gear' +
+      '<div class="type-toggle-bar" id="type-selector">' +
+        '<button type="button" class="type-toggle-btn' + (!selectedIsConsumable ? ' on' : '') + '" id="btn-type-durable" data-act="pick-item-type" data-type="durable">' +
+          U.icon('truck') + ' Reusable Gear' +
         '</button>' +
-        '<button type="button" class="btn grow btn-sm ' + (selectedIsConsumable ? 'btn-primary' : 'btn-ghost') + '" id="btn-type-consumable" data-act="pick-item-type" data-type="consumable" style="min-height:38px;font-size:12px">' +
-          U.icon('sparkles', 'mr4') + ' Consumable' +
+        '<button type="button" class="type-toggle-btn' + (selectedIsConsumable ? ' on' : '') + '" id="btn-type-consumable" data-act="pick-item-type" data-type="consumable">' +
+          U.icon('sparkles') + ' Consumable' +
         '</button>' +
       '</div>' +
-      '<p class="muted mb12" id="type-hint" style="font-size:11.5px">' +
-        (selectedIsConsumable ? 'Supplies used up on location (fuel cans, skewers, napkins). Not flagged as lost.' : 'Durable gear (chafing dishes, pots, plates). Must return 100%.') +
-      '</p>';
+      '<div class="type-hint-box" id="type-hint">' +
+        (selectedIsConsumable
+          ? 'Supplies used up on location (fuel cans, skewers, napkins). Not flagged as lost.'
+          : 'Durable gear (chafing dishes, pans, plates). Must return 100%.') +
+      '</div>';
 
+    // 2. Direct Category Picker Buttons
     var catGridHtml = '<div class="cat-grid" id="cat-selector">' +
       cats.map(function (c) {
         var isSel = (selectedCategoryId === c.id);
-        return '<div class="cat-card">' +
-          '<button type="button" class="cat-btn' + (isSel ? ' selected' : '') + '" data-act="pick-cat-card" data-cat="' + c.id + '">' +
-            U.icon(c.icon || 'plate') +
-            '<span>' + U.esc(c.name) + '</span>' +
-          '</button>' +
-        '</div>';
+        return '<button type="button" class="cat-btn' + (isSel ? ' selected' : '') + '" data-act="pick-cat-card" data-cat="' + c.id + '">' +
+          U.icon(c.icon || 'plate') +
+          '<span>' + U.esc(c.name) + '</span>' +
+        '</button>';
       }).join('') +
       '</div>';
 
+    // 3. Compact Current Stock Display / Initial Stock Input
     var qtySectionHtml = it ? (
-      '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
-        '<div class="row row-between">' +
-          '<div>' +
-            '<span style="font-size:11.5px;font-weight:700;color:var(--timber-soft);text-transform:uppercase">Current Inventory Stock</span>' +
-            '<div style="font-size:16px;font-weight:700;color:var(--timber-ink)">' + it.qty + ' ' + U.esc(it.unit) + '</div>' +
-          '</div>' +
-          '<span class="muted" style="font-size:11.5px;text-align:right">Stock adjustments are made via audits in Item Details</span>' +
+      '<div class="edit-stock-card">' +
+        '<div class="edit-stock-badge">' +
+          '<span class="edit-stock-label">Current Stock</span>' +
+          '<span class="edit-stock-val">' + it.qty + ' ' + U.esc(it.unit) + '</span>' +
         '</div>' +
+        '<span class="edit-stock-note">Stock counts are audited in Item Details</span>' +
       '</div>'
     ) : (
       '<div class="field">' +
@@ -639,44 +793,45 @@ App.Views.inventory = (function () {
       '</div>'
     );
 
+    // 4. Modal HTML Hierarchy
     var html =
-      '<div class="field">' +
-        '<label>Item Nature</label>' +
-        typeSelectorHtml +
-      '</div>' +
-
       '<div class="field">' +
         '<label for="f-name">Item Name *</label>' +
         '<input class="input" id="f-name" value="' + U.esc(it ? it.name : '') + '" placeholder="e.g. Chafing dish + lid">' +
       '</div>' +
 
-      '<div class="row">' +
-        '<div class="grow mr8">' +
+      '<div class="field-row">' +
+        '<div class="field-col-grow">' +
           '<div class="field">' +
-            '<label for="f-brand">Brand / Model (Shows on mark tape) *</label>' +
-            '<input class="input" id="f-brand" value="' + U.esc(it ? (it.brand || '') : '') + '" placeholder="e.g. Tramontina / Coleman">' +
+            '<label for="f-brand">Brand / Model (Mark tape) *</label>' +
+            '<input class="input" id="f-brand" value="' + U.esc(it ? (it.brand || '') : '') + '" placeholder="e.g. Tramontina">' +
           '</div>' +
         '</div>' +
-        '<div style="width:96px">' +
+        '<div class="field-col-fixed">' +
           '<div class="field">' +
-            '<label for="f-unit">Unit</label>' +
-            '<input class="input" id="f-unit" value="' + U.esc(it ? it.unit : 'pc') + '" placeholder="pc / set">' +
+            '<label for="f-unit">Unit *</label>' +
+            '<input class="input" id="f-unit" value="' + U.esc(it ? it.unit : 'pc') + '" placeholder="pc">' +
           '</div>' +
         '</div>' +
-      '</div>' +
-
-      qtySectionHtml +
-
-      '<div class="field">' +
-        '<label for="f-threshold">Low Stock Alert Threshold</label>' +
-        '<input class="input" id="f-threshold" type="number" inputmode="numeric" min="0" value="' + (it ? (it.lowStockThreshold !== undefined ? it.lowStockThreshold : 2) : 2) + '" placeholder="Alert when stock falls to this count">' +
-        '<span class="muted" style="font-size:11px;display:block;margin-top:2px">Triggers low-stock warnings when inventory drops to or below this quantity.</span>' +
       '</div>' +
 
       '<div class="field">' +
         '<label>Category</label>' +
         catGridHtml +
         '<input type="hidden" id="f-cat" value="' + selectedCategoryId + '">' +
+      '</div>' +
+
+      '<div class="field">' +
+        '<label>Item Nature</label>' +
+        typeSelectorHtml +
+      '</div>' +
+
+      qtySectionHtml +
+
+      '<div class="field">' +
+        '<label for="f-threshold">Low Stock Alert Threshold</label>' +
+        '<input class="input" id="f-threshold" type="number" inputmode="numeric" min="0" value="' + (it ? (it.lowStockThreshold !== undefined ? it.lowStockThreshold : 2) : 2) + '" placeholder="Alert when stock reaches this">' +
+        '<span class="muted" style="font-size:11px;display:block;margin-top:2px">Triggers low-stock warnings when commissary drops to or below this count.</span>' +
       '</div>' +
 
       '<div class="divider"></div>' +
@@ -695,27 +850,31 @@ App.Views.inventory = (function () {
 
       '<div class="field">' +
         '<label>Gear Photo</label>' +
-        '<div class="photo-box" id="f-photo" data-act="pick-photo">' +
+        '<div class="photo-box" id="f-photo" data-act="pick-photo" title="Tap to upload photo">' +
           '<div class="photo-box-content" id="f-photo-hint">' +
             U.icon('camera') +
             '<span>Tap to snap or upload gear photo</span>' +
           '</div>' +
         '</div>' +
         '<input class="hidden-file" type="file" id="f-file" accept="image/*">' +
-        '<button type="button" class="btn btn-ghost btn-sm mt8" data-act="clear-photo">' + U.icon('trash', 'mr4') + ' Remove photo</button>' +
+        '<div class="photo-actions-row" id="f-photo-actions" style="display:' + ((it && it.photoId) ? 'flex' : 'none') + '">' +
+          '<button type="button" class="btn-photo-remove" data-act="clear-photo">' +
+            U.icon('trash') + ' Remove photo' +
+          '</button>' +
+        '</div>' +
       '</div>' +
 
       '<div class="field">' +
         '<label for="f-note">Condition Notes</label>' +
-        '<textarea class="input" id="f-note" placeholder="e.g. Minor dent on lid, handle tightened">' + U.esc(it ? it.note : '') + '</textarea>' +
+        '<textarea class="input" id="f-note" placeholder="e.g. Minor dent on lid, handle tightened" style="min-height:54px;resize:none">' + U.esc(it ? it.note : '') + '</textarea>' +
       '</div>' +
 
       '<div class="sheet-sticky-footer">' +
         '<button type="button" class="btn btn-primary mb8" data-act="save-item">' +
           (it ? 'Save changes' : 'Add to inventory shelf') +
         '</button>' +
-        '<div class="row" style="gap:6px">' +
-          (it ? '<button type="button" class="btn btn-danger grow btn-sm" data-act="del-item">' + U.icon('trash', 'mr4') + 'Delete</button>' : '') +
+        '<div class="row">' +
+          (it ? '<button type="button" class="btn btn-danger grow btn-sm mr8" data-act="del-item">' + U.icon('trash', 'mr4') + 'Delete</button>' : '') +
           '<button type="button" class="btn btn-ghost grow btn-sm" data-act="sheet-close">Cancel</button>' +
         '</div>' +
       '</div>';
@@ -737,9 +896,16 @@ App.Views.inventory = (function () {
     }
 
     if (it && it.photoId) {
-      App.DB.get(it.photoId).then(function (v) {
-        if (v) setPhotoPreview(v);
-      });
+      if (photoCache[it.photoId]) {
+        setPhotoPreview(photoCache[it.photoId]);
+      } else if (App.DB) {
+        App.DB.get(it.photoId).then(function (v) {
+          if (v) {
+            photoCache[it.photoId] = v;
+            setPhotoPreview(v);
+          }
+        });
+      }
     }
 
     var file = document.getElementById('f-file');
@@ -748,10 +914,14 @@ App.Views.inventory = (function () {
   }
 
   function setPhotoPreview(dataUrl) {
-    var box = document.getElementById('f-photo'), hint = document.getElementById('f-photo-hint');
+    var box = document.getElementById('f-photo');
+    var hint = document.getElementById('f-photo-hint');
+    var actions = document.getElementById('f-photo-actions');
     if (!box) return;
+
     box.style.backgroundImage = dataUrl ? 'url(' + dataUrl + ')' : '';
     if (hint) hint.style.display = dataUrl ? 'none' : 'flex';
+    if (actions) actions.style.display = dataUrl ? 'flex' : 'none';
   }
 
   function onFile(e) {
@@ -804,6 +974,8 @@ App.Views.inventory = (function () {
 
     if (pendingPhoto === 'clear') {
       if (data.photoId) {
+        delete photoCache[data.photoId];
+        delete photoCache[data.photoId + '-t'];
         App.DB.del(data.photoId);
         App.DB.del(data.photoId + '-t');
       }
@@ -811,6 +983,8 @@ App.Views.inventory = (function () {
     } else if (pendingPhoto) {
       var pid = data.photoId || S.uid('ph-');
       data.photoId = pid;
+      photoCache[pid] = pendingPhoto.full;
+      photoCache[pid + '-t'] = pendingPhoto.thumb;
       App.DB.set(pid, pendingPhoto.full);
       App.DB.set(pid + '-t', pendingPhoto.thumb);
     }
@@ -888,11 +1062,20 @@ App.Views.inventory = (function () {
       if (!targetCat) chipsScrollLeft = 0;
       cat = targetCat;
       page = 1;
+      catPages = {}; // Reset category sub-pages
       closeAllDropdowns();
       App.rerenderQuiet();
     }
     else if (act === 'set-inv-view-mode') {
-      viewMode = el.getAttribute('data-mode') || 'cards';
+      var nextMode = el.getAttribute('data-mode') || 'cards';
+      if (nextMode === viewMode) return;
+      viewMode = nextMode;
+      viewModeSwitchAnim = true;
+      closeAllDropdowns();
+      App.rerenderQuiet();
+    }
+    else if (act === 'set-inv-grid-cols') {
+      gridCols = parseInt(el.getAttribute('data-cols'), 10) || 2;
       closeAllDropdowns();
       App.rerenderQuiet();
     }
@@ -903,6 +1086,25 @@ App.Views.inventory = (function () {
         var willOpen = !accEl.classList.contains('open');
         openAccordions[accId] = willOpen;
         accEl.classList.toggle('open', willOpen);
+      }
+    }
+    else if (act === 'inv-cat-acc-prev-page') {
+      var prevCat = el.getAttribute('data-cat') || '';
+      catPages[prevCat] = Math.max(1, (catPages[prevCat] || 1) - 1);
+      App.rerenderQuiet();
+    }
+    else if (act === 'inv-cat-acc-next-page') {
+      var nextCat = el.getAttribute('data-cat') || '';
+      catPages[nextCat] = (catPages[nextCat] || 1) + 1;
+      App.rerenderQuiet();
+    }
+    else if (act === 'change-cat-page-size') {
+      var newCatSize = parseInt(el.getAttribute('data-size'), 10) || 5;
+      if (newCatSize !== catPageSize) {
+        catPageSize = newCatSize;
+        catPages = {}; // Reset all categories to page 1
+        closeAllDropdowns();
+        App.rerenderQuiet();
       }
     }
     else if (act === 'toggle-dd') {
@@ -919,6 +1121,7 @@ App.Views.inventory = (function () {
       }
       closeAllDropdowns();
       page = 1;
+      catPages = {};
       App.rerenderQuiet();
     }
     else if (act === 'reset-filters') {
@@ -928,6 +1131,7 @@ App.Views.inventory = (function () {
       sortField = 'alpha';
       sortDir = 'asc';
       page = 1;
+      catPages = {};
       chipsScrollLeft = 0;
       closeAllDropdowns();
       App.rerenderQuiet();
@@ -991,8 +1195,8 @@ App.Views.inventory = (function () {
       if (itPhoto && itPhoto.photoId) {
         var catObj = S.category(itPhoto.categoryId);
         var metaHtml = U.tag(itPhoto.brand || itPhoto.tagLabel || 'Loreto', itPhoto.tagColor) +
-          (itPhoto.isConsumable ? ' <span class="tag tag-yellow" style="font-size:9.5px;margin-left:4px">Supply</span>' : '') +
-          (catObj ? ' <span class="tag tag-white" style="font-size:9.5px;margin-left:4px">' + U.esc(catObj.name) + '</span>' : '');
+          (itPhoto.isConsumable ? ' <span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
+          (catObj ? ' <span class="tag tag-white ml4" style="font-size:9.5px">' + U.esc(catObj.name) + '</span>' : '');
         U.openLightbox(itPhoto.photoId, itPhoto.name, metaHtml);
       } else {
         U.toast('No photo attached to this item.');
@@ -1036,13 +1240,13 @@ App.Views.inventory = (function () {
       var hint = document.getElementById('type-hint');
 
       if (btnDurable && btnConsumable) {
-        btnDurable.className = 'btn grow btn-sm ' + (!selectedIsConsumable ? 'btn-primary' : 'btn-ghost');
-        btnConsumable.className = 'btn grow btn-sm ' + (selectedIsConsumable ? 'btn-primary' : 'btn-ghost');
+        btnDurable.className = 'type-toggle-btn' + (!selectedIsConsumable ? ' on' : '');
+        btnConsumable.className = 'type-toggle-btn' + (selectedIsConsumable ? ' on' : '');
       }
       if (hint) {
         hint.textContent = selectedIsConsumable
           ? 'Supplies used up on location (fuel cans, skewers, napkins). Not flagged as lost.'
-          : 'Durable gear (chafing dishes, pots, plates). Must return 100%.';
+          : 'Durable gear (chafing dishes, pans, plates). Must return 100%.';
       }
     }
     else if (act === 'pick-cat-card') {
@@ -1130,6 +1334,7 @@ App.Views.inventory = (function () {
         ensureOthersCategory();
         cat = '';
         page = 1;
+        catPages = {};
         openCats();
         App.rerenderQuiet();
         U.toast('Categories restored to default.');

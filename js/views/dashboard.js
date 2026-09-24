@@ -1,10 +1,10 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Dashboard (js/views/dashboard.js)
+   - Harmonized Active Booking Card (Matches Catering Mode .cat-head 1:1)
    - Real Vector SVG Recovery Trend Line/Bar Chart (Zero Cut-Offs)
    - Redesigned Inventory Stock Health Widget with Dedicated Full-Width Action
-   - Live Active Booking Card with Recovery Progress
-   - Harmonized event history wording and clean calendar iconography
-   - iPhone 5s & iOS 12 Safari optimized (no flex gap)
+   - Direct Tab Routing into Catering Mode (Load-out, Crew, Pack-down)
+   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -34,53 +34,82 @@ App.Views.dashboard = (function () {
     var pctLow = Math.round((lowCount / totalItems) * 100);
     var pctEmpty = Math.round((emptyCount / totalItems) * 100);
 
-    // Active Booking Card
+    // Active Booking Card (Harmonized with Catering Mode)
     var activeCardHtml = '';
     if (ev) {
       var isStaging = ev.status === 'staging';
-      var subtitle = '';
+      var crewCount = (ev.staffIds || []).length;
 
-      if (isStaging) {
-        subtitle = t.durableOut + ' gear &middot; ' + t.consumableOut + ' supplies staged';
-      } else if (t.durableOut > 0) {
-        subtitle = t.durableBack + ' of ' + t.durableOut + ' gear back (' + t.pct + '%)' +
-          (t.missing ? ' &middot; <strong style="color:#FFA494">' + t.missing + ' gear missing</strong>' : ' &middot; all accounted for') +
-          (t.consumed > 0 ? ' &middot; ' + t.consumed + ' supplies used' : '');
-      } else {
-        subtitle = t.back + ' of ' + t.out + ' back' +
-          (t.consumed > 0 ? ' &middot; ' + t.consumed + ' supplies used' : '');
+      var pillHtml = isStaging
+        ? '<span class="event-status-pill staging"><span class="status-dot"></span>Staging</span>'
+        : '<span class="event-status-pill live"><span class="status-dot"></span>Out on location</span>';
+
+      var countsHtml = isStaging
+        ? '<span class="cat-head-counts"><b>' + t.durableOut + '</b> gear &middot; <b>' + t.consumableOut + '</b> supplies</span>'
+        : '<span class="cat-head-counts"><b>' + t.pct + '%</b> returned</span>';
+
+      var statusRow = '<div class="cat-head-status">' + pillHtml + countsHtml + '</div>';
+
+      var progressSection = '';
+      if (!isStaging) {
+        var meterSub = t.durableOut > 0
+          ? t.durableBack + ' of ' + t.durableOut + ' gear back (' + t.pct + '%)' +
+            (t.missing ? ' &middot; <strong class="cat-warn-text">' + t.missing + ' missing</strong>' : ' &middot; all accounted for') +
+            (t.consumed > 0 ? ' &middot; ' + t.consumed + ' used' : '')
+          : t.back + ' of ' + t.out + ' pieces back' +
+            (t.consumed > 0 ? ' &middot; ' + t.consumed + ' used' : '');
+
+        progressSection =
+          '<div class="cat-progress">' +
+            '<div class="meter">' +
+              '<div class="meter-fill' + (t.pct === 100 ? ' full' : '') + '" style="width:' + t.pct + '%"></div>' +
+            '</div>' +
+            '<p class="cat-progress-sub">' + meterSub + '</p>' +
+          '</div>';
       }
 
+      var tabsSection = isStaging
+        ? '<div class="cat-head-home-tabs">' +
+            '<button type="button" class="on" data-act="go-catering" data-tab="load">' +
+              U.icon('truck') + ' Load-out' +
+            '</button>' +
+            '<button type="button" data-act="go-catering" data-tab="crew">' +
+              U.icon('users') + ' Crew (' + crewCount + ')' +
+            '</button>' +
+          '</div>'
+        : '<div class="cat-head-home-tabs">' +
+            '<button type="button" class="on" data-act="go-catering" data-tab="back">' +
+              U.icon('check') + ' Pack down' +
+            '</button>' +
+            '<button type="button" data-act="go-catering" data-tab="load">' +
+              U.icon('truck') + ' Load-out' +
+            '</button>' +
+            '<button type="button" data-act="go-catering" data-tab="crew">' +
+              U.icon('users') + ' Crew (' + crewCount + ')' +
+            '</button>' +
+          '</div>';
+
       activeCardHtml =
-        '<div class="banner mb12">' +
-          '<div class="row row-between">' +
-            '<div class="grow mr8 truncate">' +
-              '<span class="section-badge" style="background:rgba(250,246,240,0.22);color:#FFFFFF;margin-left:0;margin-bottom:4px;display:inline-block">' +
-                (isStaging ? 'Staging & Van Loading' : 'Live Booking & Pack Down') +
-              '</span>' +
-              '<h3 class="truncate">' + U.esc(ev.name) + '</h3>' +
-              '<p class="muted mt4" style="font-size:12px">' + U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) + '</p>' +
+        '<div class="cat-head dashboard-hero-card">' +
+          '<div class="cat-head-top">' +
+            '<div class="cat-head-titles" data-act="go-catering" style="cursor:pointer">' +
+              '<h3 class="cat-head-name">' + U.esc(ev.name) + '</h3>' +
+              '<div class="cat-head-where">' + U.esc(ev.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(ev.date)) + '</div>' +
             '</div>' +
-            '<button type="button" class="btn btn-ghost btn-sm" data-act="go-catering" style="width:auto;min-height:36px;padding:4px 10px;font-size:12px;background:rgba(250,246,240,0.18);color:#fff;border-color:rgba(250,246,240,0.35)">' +
-              'Open &rarr;' +
+            '<button type="button" class="cat-head-open-btn" data-act="go-catering" aria-label="Open catering">' +
+              '<span>Open</span>' + U.icon('chevronRight') +
             '</button>' +
           '</div>' +
-          (isStaging
-            ? '<div class="row row-between mt12" style="border-top:1px solid rgba(250,246,240,0.15);padding-top:8px">' +
-                '<span style="font-size:13px;font-weight:600">' + subtitle + '</span>' +
-                '<span class="muted" style="font-size:12px">' + (ev.staffIds || []).length + ' crew</span>' +
-              '</div>'
-            : '<div class="mt12">' +
-                '<div class="meter"><div class="meter-fill' + (t.pct === 100 ? ' full' : '') + '" style="width:' + t.pct + '%"></div></div>' +
-                '<p class="muted mt8" style="font-size:12px">' + subtitle + '</p>' +
-              '</div>') +
+          statusRow +
+          progressSection +
+          tabsSection +
         '</div>';
     } else {
       activeCardHtml =
-        '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
+        '<div class="dashboard-empty-card mb12">' +
           '<div class="row row-between">' +
             '<div class="grow mr8">' +
-              '<h3 style="font-size:15px;font-weight:700;color:var(--timber-ink)">No active catering event</h3>' +
+              '<h3 class="dashboard-empty-title">No active catering event</h3>' +
               '<p class="muted mt4" style="font-size:12px">All equipment is currently home in inventory.</p>' +
             '</div>' +
             '<button type="button" class="btn btn-primary btn-sm" data-act="go-catering" style="width:auto;padding:0 12px;flex-shrink:0">' +
@@ -90,7 +119,7 @@ App.Views.dashboard = (function () {
         '</div>';
     }
 
-    // KPI Tiles
+    // KPI Tiles (iPhone 5s 2-column grid)
     var kpiGrid =
       '<div class="kpi-grid mb12">' +
         '<div class="kpi"><div class="kpi-in">' +
@@ -163,7 +192,7 @@ App.Views.dashboard = (function () {
         ? '<span class="tag tag-orange" style="font-size:9.5px">' + lowCount + ' Low</span>'
         : '<span class="tag tag-green" style="font-size:9.5px">Healthy</span>');
 
-    // Redesigned Inventory Health Card with Bottom Action
+    // Inventory Stock Health Card
     var healthBarHtml =
       '<div class="card mb12">' +
         '<div class="row row-between mb8">' +
@@ -222,7 +251,7 @@ App.Views.dashboard = (function () {
         '</div>';
     }
 
-    // Quick Shortcuts Bar (using mr8 instead of flex gap for iOS 12 compatibility)
+    // Quick Shortcuts Bar
     var quickBar =
       '<div class="row row-between mb12 mt8">' +
         '<button type="button" class="btn btn-ghost grow btn-sm mr8" data-act="go-catering" style="min-height:38px;font-size:12px">' +
@@ -247,6 +276,12 @@ App.Views.dashboard = (function () {
     var id = el ? el.getAttribute('data-id') : '';
 
     if (act === 'go-catering') {
+      var targetTab = el ? el.getAttribute('data-tab') : '';
+      if (targetTab && App.Views.catering && App.Views.catering.onAct) {
+        var fakeEl = document.createElement('button');
+        fakeEl.setAttribute('data-id', targetTab);
+        App.Views.catering.onAct('tab', fakeEl);
+      }
       App.go('catering');
       return;
     }

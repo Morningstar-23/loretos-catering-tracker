@@ -1,38 +1,234 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Dashboard / Home View (css/home.css)
    - Scope: #/dashboard route
-   - Quick Action Cards, Booking KPI Highlights, Recent Outbound Activity
-   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   - Harmonized Active Booking Card (matches Catering header aesthetic)
+   - Quick Action Shortcuts, KPI Grid, Stock Health & Activity Lists
+   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
    ========================================================================== */
 
-/* Dashboard Overview Container */
+/* Dashboard View Container */
 .dashboard-view {
   display: flex;
   flex-direction: column;
 }
 
-/* Quick Action Shortcuts */
-.dashboard-actions {
-  display: flex;
-  align-items: center;
-  margin: 10px 0 14px 0;
-}
-.dashboard-actions .btn {
-  flex: 1 1 0%;
-  min-width: 0;
-}
-.dashboard-actions .btn + .btn {
-  margin-left: 8px;
-}
-
-/* Active Booking Highlight Card */
-.dashboard-hero-card {
+/* ==========================================================================
+   Active Booking Hero Card (Matches Catering Mode .cat-head)
+   ========================================================================== */
+.dashboard-hero-card.cat-head {
   position: relative;
   overflow: hidden;
+  background: linear-gradient(160deg, var(--cat-head-a, #2B6C4B) 0%, var(--cat-head-b, #19402B) 100%);
+  color: #FAF6F0;
+  border-radius: var(--cat-radius, 14px);
+  padding: 13px 12px 10px 14px;
   margin-bottom: 12px;
+  box-shadow: 0 6px 16px rgba(25, 64, 43, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.16s var(--ease-spring);
+}
+.dashboard-hero-card.cat-head:active {
+  transform: scale(0.985);
 }
 
-/* Dashboard Activity Section */
+/* Top Titles & Action Row */
+.cat-head-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cat-head-titles {
+  flex: 1 1 0%;
+  min-width: 0;
+  padding-top: 1px;
+}
+.cat-head-name {
+  font-family: "Iowan Old Style", "Apple Garamond", Baskerville, Georgia, serif;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+  color: #FAF6F0;
+}
+.cat-head-where {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: rgba(250, 246, 240, 0.78);
+}
+
+/* Frosted-Glass "Open" Pill Action */
+.cat-head-open-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  margin: -2px 0 0 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(250, 246, 240, 0.24);
+  background: rgba(250, 246, 240, 0.14);
+  color: #FAF6F0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease;
+}
+.cat-head-open-btn::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -4px;
+  right: -4px;
+}
+.cat-head-open-btn:active {
+  transform: scale(0.92);
+  background: rgba(250, 246, 240, 0.24);
+}
+.cat-head-open-btn .icon {
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  stroke-width: 2.4;
+}
+
+/* Status Pill & Real-time Tallies */
+.cat-head-status {
+  display: flex;
+  align-items: center;
+  margin-top: 9px;
+  flex-wrap: wrap;
+}
+.cat-head .event-status-pill {
+  flex-shrink: 0;
+}
+.cat-head .event-status-pill.staging .status-dot {
+  background: #F2C14E; /* Yellow glow dot matching Catering view */
+}
+.cat-head .event-status-pill.live .status-dot {
+  background: #5EE699;
+}
+
+.cat-head-counts {
+  margin-left: 10px;
+  font-size: 12px;
+  color: rgba(250, 246, 240, 0.82);
+}
+.cat-head-counts b {
+  color: #FFFFFF;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recovery Meter when Booking is Active/Live */
+.cat-progress {
+  margin-top: 9px;
+}
+.cat-head .meter {
+  height: 7px;
+  background: rgba(250, 246, 240, 0.18);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  box-shadow: none;
+}
+.cat-head .meter-fill {
+  background: linear-gradient(90deg, #E9B44C, #F2CC7A);
+  border-radius: var(--r-pill);
+}
+.cat-head .meter-fill.full {
+  background: linear-gradient(90deg, #5FDB9B, #8FEDBB);
+}
+.cat-progress-sub {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: rgba(250, 246, 240, 0.86);
+}
+.cat-warn-text {
+  color: #FFB3A4;
+}
+
+/* Integrated Header Quick Tabs (Load-out & Crew shortcuts) */
+.cat-head-home-tabs {
+  display: flex;
+  margin: 12px 0 0 0;
+  padding: 3px;
+  border-radius: var(--cat-ctl, 12px);
+  background: rgba(0, 0, 0, 0.22);
+  border: none;
+}
+.cat-head-home-tabs button {
+  flex: 1 1 auto;
+  min-height: 38px;
+  border-radius: 9px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 6px;
+  white-space: nowrap;
+  color: rgba(250, 246, 240, 0.82);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.14s var(--ease-spring), background-color 0.15s ease, color 0.15s ease;
+}
+.cat-head-home-tabs button:not(:last-child) {
+  margin-right: 3px;
+}
+.cat-head-home-tabs button.on {
+  background: #FAF6F0;
+  color: var(--foliage-dark, #19402B) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.cat-head-home-tabs button:active {
+  transform: scale(0.95);
+}
+.cat-head-home-tabs button .icon {
+  width: 15px;
+  height: 15px;
+  margin-right: 5px;
+}
+
+/* Empty Booking Placeholder */
+.dashboard-empty-card {
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius, 14px);
+  padding: 13px 12px;
+}
+.dashboard-empty-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.25;
+}
+
+/* KPI Grid Refinements (iPhone 5s / 320px) */
+.dashboard-view .kpi-grid {
+  margin-bottom: 12px;
+}
+.dashboard-view .kpi {
+  padding: 9px 10px;
+}
+.dashboard-view .kpi-n {
+  font-size: 22px;
+}
+.dashboard-view .kpi-l {
+  font-size: 10px;
+  letter-spacing: 0.035em;
+}
+
+/* Stock Health & Activity Sections */
 .dashboard-section {
   margin-top: 14px;
 }
@@ -42,8 +238,6 @@
   justify-content: space-between;
   margin-bottom: 8px;
 }
-
-/* Recent Events List Card */
 .dashboard-event-item {
   width: 100%;
   transition: transform 0.15s var(--ease-spring);

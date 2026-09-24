@@ -150,7 +150,14 @@ the design, everything else stays quiet on purpose.
 ```
 loretos-catering-tracker
 ├─ css
-│  └─ app.css
+│  ├─ app.css.bak
+│  ├─ base.css
+│  ├─ catering.css
+│  ├─ components.css
+│  ├─ history.css
+│  ├─ home.css
+│  ├─ settings.css
+│  └─ shelf.css
 ├─ icons
 │  ├─ apple-splash-640x1136.png
 │  ├─ icon-180.png

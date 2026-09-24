@@ -1,8 +1,10 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Shelf / Inventory View (css/shelf.css)
    - Scope: #/inventory route
-   - Category Browsing, Commissary Restock Steppers, Low-Stock Highlighting
-   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   - Responsive E-Commerce Grid (2, 3, or 4 columns)
+   - Brand subtitles, stock health pills & low-stock alerts
+   - Edit Gear Modal: Form alignment, Photo Box drop zone & type toggles
+   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
    ========================================================================== */
 
 /* Inventory View Shell */
@@ -11,39 +13,112 @@
   flex-direction: column;
 }
 
-/* Top Toolbar & Filter Wrap */
-.inventory-toolbar {
-  margin-bottom: 8px;
+/* View Mode Transition Container */
+.inventory-view-wrap {
+  width: 100%;
+}
+.inventory-view-wrap.view-content-enter {
+  -webkit-animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
 }
 
-/* Stock Audit & Drawer Cards */
-.inventory-item-card {
-  position: relative;
-  transition: transform 0.16s var(--ease-spring), box-shadow 0.14s ease;
-}
-.inventory-item-card:active {
-  transform: scale(0.98);
-}
-
-/* Critical Low-Stock Warning State */
-.inventory-item-card.low-stock {
-  border-left: 3.5px solid var(--alert);
-  background-color: #FFFAF9;
-}
-.inventory-item-card.out-of-stock {
-  border-left: 3.5px solid var(--timber-soft);
-  opacity: 0.75;
-}
-
-/* Quick Restock / Audit Stepper Hit Zone */
-.inventory-stepper-wrap {
+/* Toolbar & Filter Bar */
+.inventory-toolbar-row {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
-  margin-left: 8px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+.inventory-count-label {
+  font-size: 11px;
+  color: var(--timber-soft);
+  font-weight: 600;
 }
 
-/* Commissary Category Management List */
+/* Grid View Item Card Extensions */
+.inventory-view .grid-item-card {
+  position: relative;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s var(--ease-spring);
+}
+.inventory-view .grid-item-card:active {
+  transform: scale(0.95);
+}
+
+/* Brand label beneath title in grid cards */
+.grid-brand {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--timber-soft);
+  line-height: 1.2;
+  margin-bottom: 4px;
+  max-width: 100%;
+}
+
+/* Critical Stock Alerts in Grid */
+.inventory-view .grid-staged-pill.short {
+  background: var(--alert-tint);
+  color: var(--alert);
+  border: 1px solid rgba(214, 57, 32, 0.32);
+}
+.inventory-view .grid-staged-pill.supply {
+  background: var(--gold-tint);
+  color: #8A6805;
+  border: 1px solid rgba(212, 155, 66, 0.36);
+}
+.inventory-view .grid-staged-pill.done {
+  background: var(--success-tint);
+  color: var(--success);
+  border: 1px solid rgba(36, 90, 62, 0.3);
+}
+
+/* Compact Accordion Rows in Inventory */
+.inventory-view .compact-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.12s ease;
+}
+.inventory-view .compact-item-row:last-child {
+  border-bottom: none;
+}
+.inventory-view .compact-item-row:active {
+  background-color: var(--sand-soft);
+}
+.inventory-view .compact-item-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 8px;
+}
+.inventory-view .compact-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.22;
+  word-break: break-word;
+}
+.inventory-view .compact-item-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+/* Category Management List Sheet */
 .inventory-cat-list {
   display: flex;
   flex-direction: column;
@@ -58,4 +133,186 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   margin-bottom: 6px;
+}
+
+/* ==========================================================================
+   Edit / Add Gear Modal Refinements (iPhone 5s / 320px Friendly)
+   ========================================================================== */
+
+/* Two-column field alignment container (Brand vs Unit) */
+.field-row {
+  display: flex;
+  align-items: flex-end; /* Locks inputs on the exact same bottom baseline */
+  margin-bottom: 13px;
+}
+.field-row .field-col-grow {
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-right: 8px;
+}
+.field-row .field-col-fixed {
+  flex: 0 0 88px;
+  width: 88px;
+}
+.field-row .field {
+  margin-bottom: 0;
+}
+
+/* Reusable Item Nature Toggle */
+.type-toggle-bar {
+  display: flex;
+  background: var(--sand-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 2px;
+  margin-bottom: 6px;
+}
+.type-toggle-btn {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  border: none;
+  background: transparent;
+  color: var(--timber-soft);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.14s var(--ease-spring), background-color 0.15s ease, color 0.15s ease;
+}
+.type-toggle-btn:active {
+  transform: scale(0.95);
+}
+.type-toggle-btn.on {
+  background: var(--sand-card);
+  color: var(--inasal-orange);
+  box-shadow: var(--shadow-xs);
+}
+.type-toggle-btn .icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+}
+.type-hint-box {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--timber-soft);
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+/* Compact Stock Banner for 320px Viewport */
+.edit-stock-card {
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  margin-bottom: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.edit-stock-badge {
+  display: flex;
+  flex-direction: column;
+}
+.edit-stock-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--timber-soft);
+  letter-spacing: 0.04em;
+}
+.edit-stock-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+.edit-stock-note {
+  flex: 1 1 auto;
+  max-width: 140px;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--timber-soft);
+}
+
+/* Gear Photo Drop Zone & Preview Container */
+.photo-box {
+  width: 100%;
+  height: 110px;
+  border-radius: var(--r-md);
+  border: 2px dashed var(--line-strong);
+  background-color: var(--sand-soft);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  touch-action: manipulation;
+  transition: border-color 0.16s ease, transform 0.15s var(--ease-spring);
+}
+.photo-box:active {
+  transform: scale(0.98);
+  border-color: var(--inasal-orange);
+}
+.photo-box-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px;
+  color: var(--timber-soft);
+}
+.photo-box-content .icon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 6px;
+  color: var(--timber-soft);
+  stroke-width: 1.8;
+}
+.photo-box-content span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--timber-soft);
+  line-height: 1.3;
+}
+
+/* Remove Photo Button Row */
+.photo-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.btn-photo-remove {
+  background: transparent;
+  border: none;
+  color: var(--alert);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn-photo-remove .icon {
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+}
+.btn-photo-remove:active {
+  opacity: 0.6;
 }
