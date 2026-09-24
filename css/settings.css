@@ -1,0 +1,89 @@
+/* ==========================================================================
+   Loreto's Catering Tracker — Settings & Configurations (css/settings.css)
+   - Scope: #/settings route
+   - Preset Kit Manager, Staff Roster, Commissary Categories & Backups
+   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   ========================================================================== */
+
+/* Settings View Shell */
+.settings-view {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Settings Group Sections */
+.settings-group {
+  margin-bottom: 18px;
+}
+.settings-group-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--timber-soft);
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+/* Settings Navigation Action Rows */
+.settings-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s var(--ease-spring), background-color 0.15s ease;
+}
+.settings-row:active {
+  transform: scale(0.98);
+  background: var(--sand-soft);
+}
+.settings-row-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+}
+.settings-row-sub {
+  font-size: 11.5px;
+  color: var(--timber-soft);
+  margin-top: 2px;
+}
+
+/* Preset Template Editor Cards */
+.preset-editor-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+/* Staff Member Management Row */
+.staff-manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: 6px;
+}
+
+/* Backup & Storage Actions */
+.settings-backup-panel {
+  background: var(--sand-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 12px;
+  text-align: center;
+  margin-top: 8px;
+}

@@ -1,0 +1,61 @@
+/* ==========================================================================
+   Loreto's Catering Tracker — Shelf / Inventory View (css/shelf.css)
+   - Scope: #/inventory route
+   - Category Browsing, Commissary Restock Steppers, Low-Stock Highlighting
+   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   ========================================================================== */
+
+/* Inventory View Shell */
+.inventory-view {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Toolbar & Filter Wrap */
+.inventory-toolbar {
+  margin-bottom: 8px;
+}
+
+/* Stock Audit & Drawer Cards */
+.inventory-item-card {
+  position: relative;
+  transition: transform 0.16s var(--ease-spring), box-shadow 0.14s ease;
+}
+.inventory-item-card:active {
+  transform: scale(0.98);
+}
+
+/* Critical Low-Stock Warning State */
+.inventory-item-card.low-stock {
+  border-left: 3.5px solid var(--alert);
+  background-color: #FFFAF9;
+}
+.inventory-item-card.out-of-stock {
+  border-left: 3.5px solid var(--timber-soft);
+  opacity: 0.75;
+}
+
+/* Quick Restock / Audit Stepper Hit Zone */
+.inventory-stepper-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* Commissary Category Management List */
+.inventory-cat-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+.inventory-cat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  margin-bottom: 6px;
+}

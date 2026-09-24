@@ -1,0 +1,83 @@
+/* ==========================================================================
+   Loreto's Catering Tracker — History & Audit Logs View (css/history.css)
+   - Scope: #/history route
+   - Completed Event Summaries, Gear Return Rates & Reconciliation Tallies
+   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   ========================================================================== */
+
+/* History View Shell */
+.history-view {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Event History Log Card */
+.history-card {
+  position: relative;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 13px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.16s var(--ease-spring), box-shadow 0.14s ease;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.history-card:active {
+  transform: scale(0.98);
+}
+
+/* Status Indicator Accents */
+.history-card.perfect-return {
+  border-left: 3.5px solid var(--foliage);
+}
+.history-card.has-missing {
+  border-left: 3.5px solid var(--alert);
+}
+.history-card.has-writeoff {
+  border-left: 3.5px solid var(--gold);
+}
+
+/* History Details Header */
+.history-detail-header {
+  margin-bottom: 12px;
+}
+.history-detail-title {
+  font-family: "Iowan Old Style", Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--inasal-dark);
+}
+
+/* Tally Recovery Pill Badge */
+.history-tally-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.history-tally-badge.ok {
+  background: var(--foliage-tint);
+  color: var(--foliage-dark);
+}
+.history-tally-badge.warn {
+  background: var(--alert-tint);
+  color: var(--alert);
+}
+
+/* Manifest Archive Item Row */
+.history-manifest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.history-manifest-row:last-child {
+  border-bottom: none;
+}
