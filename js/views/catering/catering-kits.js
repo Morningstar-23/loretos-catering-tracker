@@ -1,8 +1,10 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 2: Kits & Checklist (js/views/catering/catering-kits.js)
+   - Zero emojis: 100% clean Lucide/Feather vector SVG iconography
+   - Save manual van load-outs directly as new kit presets (even without an active kit)
+   - Quick "Save Current Load" card directly inside the Preset Picker
    - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
    - Non-truncating kit presets, descriptions, and inspector cards
-   - Gear checklist modal with category icons matching inventory
    - Full Modal Navigation Stack integration across all kit sub-sheets
    - Multi-line word-wrap & optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
@@ -137,6 +139,22 @@ App.Views.Catering.Kits = (function () {
     }
 
     var presets = S.presets();
+    var hasVanLines = ev && ev.lines && ev.lines.length > 0;
+
+    /* Quick action card: save current van items as a preset directly from picker */
+    var saveCurrentCard = hasVanLines ? (
+      '<div class="card mb12" style="background:var(--sand-soft);border:1.5px solid var(--line-strong);padding:10px 12px">' +
+        '<div class="row row-between">' +
+          '<div class="grow mr8" style="min-width:0">' +
+            '<span class="muted" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em">CURRENT LOAD-OUT</span>' +
+            '<strong style="display:block;font-size:13px;color:var(--timber-ink)">' + ev.lines.length + ' item types in van</strong>' +
+          '</div>' +
+          '<button type="button" class="btn btn-primary btn-sm" data-act="prompt-save-new-preset" style="width:auto;min-height:34px;padding:2px 10px;font-size:11.5px">' +
+            U.icon('plus', 'mr4') + 'Save as Preset' +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ) : '';
 
     var listHtml = presets.map(function (p) {
       var avail = S.checkPresetAvailability(p.id, true);
@@ -152,7 +170,7 @@ App.Views.Catering.Kits = (function () {
           (isLoadedNow ? '<span class="tag tag-orange">Active</span>' : '') +
         '</div>' +
         '<div class="row mb8">' +
-          (isShort ? '<span class="tag tag-red" style="font-size:9.5px">' + avail.shortCount + ' items short in inventory</span>'
+          (isShort ? '<span class="tag tag-red" style="font-size:9.5px;display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + avail.shortCount + ' items short in inventory</span>'
                    : '<span class="tag tag-green" style="font-size:9.5px">100% available</span>') +
         '</div>' +
         '<button type="button" class="btn btn-primary btn-sm" data-act="' + (isSwitching ? 'confirm-switch-preset' : 'select-initial-preset') + '" data-id="' + p.id + '">' +
@@ -165,7 +183,14 @@ App.Views.Catering.Kits = (function () {
       ? '<button type="button" class="btn btn-ghost" data-act="modal-back">&larr; Back</button>'
       : '<button type="button" class="btn btn-ghost" data-act="sheet-close">Cancel</button>';
 
-    var html = '<div class="list mb12">' + (listHtml || '<div class="empty"><p class="muted">No kit presets saved yet.</p></div>') + '</div>' +
+    var html = saveCurrentCard +
+      '<div class="row row-between mb8">' +
+        '<span class="muted" style="font-size:11.5px;font-weight:700">Saved Kit Presets (' + presets.length + ')</span>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="new-preset" style="width:auto;min-height:30px;padding:2px 8px;font-size:11px">' +
+          U.icon('plus', 'mr4') + 'Blank Preset' +
+        '</button>' +
+      '</div>' +
+      '<div class="list mb12">' + (listHtml || '<div class="empty"><p class="muted">No kit presets saved yet.</p></div>') + '</div>' +
       '<div class="sheet-sticky-footer">' + cancelBtn + '</div>';
 
     var dir = isBack ? 'back' : (Nav.hasBack() ? 'forward' : 'none');
@@ -180,40 +205,70 @@ App.Views.Catering.Kits = (function () {
 
     var p = ev.presetId ? S.preset(ev.presetId) : null;
     var isModified = (App.Views.catering && App.Views.catering.isEventPresetModified) ? App.Views.catering.isEventPresetModified(ev) : false;
+    var hasVanLines = ev.lines && ev.lines.length > 0;
 
-    var activeCard = p ? (
-      '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
-        '<div class="row row-between">' +
-          '<div style="min-width:0;flex:1"><span class="muted" style="font-size:10.5px;font-weight:700">ACTIVE KIT</span>' +
-          '<h4 style="font-size:14.5px;font-weight:700;word-break:break-word;line-height:1.24">' + U.esc(p.name) + '</h4></div>' +
-          (isModified ? '<span class="tag tag-yellow" style="font-size:10px">Modified</span>'
-                      : '<span class="tag tag-green" style="font-size:10px">In sync</span>') +
-        '</div>' +
-      '</div>'
-    ) : '';
+    var headerCard = '';
+    var modButtons = '';
 
-    var modButtons = (p && isModified) ? (
-      '<button type="button" class="btn btn-primary mb8" data-act="update-current-preset" data-id="' + p.id + '">' +
-        U.icon('check', 'mr4') + ' Update "' + U.esc(p.name) + '" with van load' +
-      '</button>' +
-      '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
-        U.icon('plus', 'mr4') + ' Save load as NEW preset' +
-      '</button>' +
-      '<button type="button" class="btn btn-danger btn-sm mb8" data-act="revert-preset-changes">' +
-        U.icon('refresh', 'mr4') + ' Discard changes & revert kit' +
-      '</button>'
-    ) : (
-      '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
-        U.icon('plus', 'mr4') + ' Save current load as preset' +
-      '</button>'
-    );
+    if (p) {
+      // 1. AN ACTIVE KIT IS LINKED
+      headerCard =
+        '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line)">' +
+          '<div class="row row-between">' +
+            '<div style="min-width:0;flex:1"><span class="muted" style="font-size:10.5px;font-weight:700">ACTIVE KIT</span>' +
+            '<h4 style="font-size:14.5px;font-weight:700;word-break:break-word;line-height:1.24">' + U.esc(p.name) + '</h4></div>' +
+            (isModified ? '<span class="tag tag-yellow" style="font-size:10px">Modified</span>'
+                        : '<span class="tag tag-green" style="font-size:10px">In sync</span>') +
+          '</div>' +
+        '</div>';
+
+      modButtons = (isModified) ? (
+        '<button type="button" class="btn btn-primary mb8" data-act="update-current-preset" data-id="' + p.id + '">' +
+          U.icon('check', 'mr4') + ' Update "' + U.esc(p.name) + '" with van load' +
+        '</button>' +
+        '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
+          U.icon('plus', 'mr4') + ' Save load as NEW preset' +
+        '</button>' +
+        '<button type="button" class="btn btn-danger btn-sm mb8" data-act="revert-preset-changes">' +
+          U.icon('refresh', 'mr4') + ' Discard changes & revert kit' +
+        '</button>'
+      ) : (
+        '<button type="button" class="btn btn-ghost mb8" data-act="prompt-save-new-preset">' +
+          U.icon('plus', 'mr4') + ' Save current load as NEW preset' +
+        '</button>'
+      );
+
+    } else {
+      // 2. NO PRESET LINKED (Manual items added directly or preset was detached)
+      headerCard =
+        '<div class="card mb12" style="background:var(--sand-soft);border:1.5px solid var(--line-strong);padding:11px 12px">' +
+          '<div class="row row-between">' +
+            '<div style="min-width:0;flex:1">' +
+              '<span class="muted" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em">LOAD-OUT STATUS</span>' +
+              '<h4 style="font-size:14.5px;font-weight:700;word-break:break-word;line-height:1.24">Manual Load-out</h4>' +
+              '<p class="muted mt2" style="font-size:11.5px">' + (hasVanLines ? ev.lines.length + ' item types staged without a kit' : 'Empty van') + '</p>' +
+            '</div>' +
+            '<span class="tag tag-yellow" style="font-size:10px">No Kit Linked</span>' +
+          '</div>' +
+        '</div>';
+
+      modButtons = hasVanLines ? (
+        '<button type="button" class="btn btn-primary mb8" data-act="prompt-save-new-preset">' +
+          U.icon('plus', 'mr4') + ' Save current van load as NEW preset' +
+        '</button>'
+      ) : (
+        '<button type="button" class="btn btn-primary mb8" data-act="new-preset">' +
+          U.icon('plus', 'mr4') + ' Create new blank preset' +
+        '</button>'
+      );
+    }
 
     var cancelBtn = Nav.hasBack()
       ? '<button type="button" class="btn btn-ghost" data-act="modal-back">&larr; Back</button>'
       : '<button type="button" class="btn btn-ghost" data-act="sheet-close">Done</button>';
 
-    var html = activeCard + modButtons + '<div class="divider"></div>' +
-      '<button type="button" class="btn btn-ghost mb8" data-act="pick-preset-to-switch">' + U.icon('layers', 'mr4') + ' Switch to another kit...</button>' +
+    var html = headerCard + modButtons + '<div class="divider"></div>' +
+      '<button type="button" class="btn btn-ghost mb8" data-act="pick-preset-to-switch">' + U.icon('layers', 'mr4') + ' Switch / load another kit...</button>' +
       '<button type="button" class="btn btn-ghost mb8" data-act="manage-presets">' + U.icon('settings', 'mr4') + ' Manage all saved presets</button>' +
       '<div class="sheet-sticky-footer">' + cancelBtn + '</div>';
 
@@ -233,7 +288,7 @@ App.Views.Catering.Kits = (function () {
       '<div class="field"><label for="new-p-name">Preset Name *</label>' +
         '<input class="input" id="new-p-name" value="' + U.esc(defaultName) + '"></div>' +
       '<div class="field"><label for="new-p-note">Description / Notes</label>' +
-        '<textarea class="input" id="new-p-note">' + U.esc('Kit saved from ' + ev.name) + '</textarea></div>' +
+        '<textarea class="input" id="new-p-note">' + U.esc('Kit saved from ' + (ev.name || 'custom van load')) + '</textarea></div>' +
       '<div class="sheet-sticky-footer">' +
         '<button type="button" class="btn btn-primary mb8" data-act="confirm-save-new-preset">' + U.icon('check', 'mr4') + ' Save as new preset</button>' +
         '<button type="button" class="btn btn-ghost" data-act="' + (Nav.hasBack() ? 'modal-back' : 'open-preset-options') + '">&larr; Back</button>' +
@@ -260,7 +315,7 @@ App.Views.Catering.Kits = (function () {
             '<span class="item-name" style="word-break:break-word;line-height:1.24">' + U.esc(l.name) + '</span>' +
             '<span class="item-sub">Stock: ' + l.inInventory + ' &middot; Kit needs: ' + l.targetQty + '</span>' +
           '</div>' +
-          (l.isShort ? '<span class="tag tag-red" style="font-size:10px">Short by ' + l.shortBy + '</span>'
+          (l.isShort ? '<span class="tag tag-red" style="font-size:10px;display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + 'Short by ' + l.shortBy + '</span>'
                      : '<span class="tag tag-green" style="font-size:10px">Available</span>') +
         '</div>' +
       '</div>';
@@ -436,7 +491,7 @@ App.Views.Catering.Kits = (function () {
       editingPreset.name = ((document.getElementById('p-name') || {}).value || '').trim();
       editingPreset.note = ((document.getElementById('p-note') || {}).value || '').trim();
       editingPreset.lines.push({ itemId: addId, qty: 1 });
-      openPresetEditor(editingPreset.id || null, true, 'none'); // Stay in place without sliding
+      openPresetEditor(editingPreset.id || null, true, 'none');
       return true;
     }
     if (act === 'p-qty-plus' || act === 'p-qty-minus') {

@@ -1,11 +1,11 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Application Controller & Router (js/app.js)
    - Optimized for iPhone 5s / iOS 12 Mobile Safari (320px viewport)
+   - Global Modal Delegation: Immediate interception for sheets & picture lightbox
    - Rigid Native Viewport Lock: Blocks rubberband bounce & drag-to-reload
    - Dynamic Header Actions: #topbar-right renders view controls (left-aligned title)
    - Scroll-position preservation on rerenderQuiet (no snapping to top on stepper taps)
    - Preserves native SELECT & INPUT interactions without click blocking
-   - Delegated change listener for sort dropdowns and calendar pickers
    ========================================================================== */
 (function () {
   var ROUTES = ['dashboard', 'inventory', 'catering', 'history', 'settings'];
@@ -20,7 +20,7 @@
   function go(path) {
     var clean = path.replace(/^\//, '');
     if (location.hash === '#/' + clean) {
-      render(true);
+      render(false);
       return;
     }
     location.hash = '#/' + clean;
@@ -45,7 +45,7 @@
     /* CSS transition only on explicit route transitions */
     viewEl.className = '';
     if (animate !== false) {
-      void viewEl.offsetWidth; // Force layout reflow
+      void viewEl.offsetWidth;
       viewEl.className = 'view-enter';
     }
 
@@ -102,9 +102,16 @@
     if (!hit) return;
 
     var act = hit.getAttribute('data-act');
+
+    /* Global Sheet & Lightbox Dismissal */
     if (act === 'sheet-close') {
       e.preventDefault();
       App.UI.closeSheet();
+      return;
+    }
+    if (act === 'lightbox-close') {
+      e.preventDefault();
+      App.UI.closeLightbox();
       return;
     }
 
@@ -154,7 +161,6 @@
       var canScroll = false;
 
       while (cur && cur !== document.body && cur !== document) {
-        // Allow touch scrolling ONLY inside scrollable content containers
         if (
           cur.id === 'view' ||
           (cur.classList && cur.classList.contains('sheet-body')) ||
@@ -168,7 +174,6 @@
         cur = cur.parentNode;
       }
 
-      // If the touch started on headers, tabbar, banner, or background, block page dragging completely
       if (!canScroll && e.cancelable) {
         e.preventDefault();
       }

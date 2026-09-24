@@ -1,10 +1,14 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 1: Modals (js/views/catering/catering-modals.js)
+   - Zero emojis: Clean Lucide/Feather vector SVG iconography
+   - Direct link to Shelf/Inventory: 1-tap jump to item audit & editing
+   - Enlarge Photo Lightbox with zoom badge & high-resolution preview
+   - Item Details Modal: Current Commissary Stock prominently highlighted
+   - Context-aware KPIs: Hides irrelevant "Back in hand" during van staging
+   - Actionable inspector: Direct jump to Adjust Qty or Record Returns
    - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
    - Self-healing Modal Navigation History Stack (Prevents stuck Back buttons)
-   - Item details, photo lightbox, quick qty steppers, returns counter,
-     staff directory picker, and plain text manifest
-   - Multi-line word-wrap & optimized for iPhone 5s (iOS 12 / 320px viewport)
+   - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -14,7 +18,6 @@ App.Views.Catering = App.Views.Catering || {};
 App.Views.Catering.Nav = {
   stack: [],
   push: function (openFn) {
-    // If the sheet is currently closed, this is a fresh root modal session
     if (!App.UI.isSheetOpen() || this.stack.length === 0) {
       this.stack = [];
     }
@@ -22,10 +25,10 @@ App.Views.Catering.Nav = {
   },
   back: function () {
     if (this.stack.length > 1) {
-      this.stack.pop(); // Remove current modal
+      this.stack.pop();
       var prevFn = this.stack[this.stack.length - 1];
       if (prevFn) {
-        prevFn(true); // Reopen previous modal with isBack = true (slides back)
+        prevFn(true);
         return true;
       }
     }
@@ -59,11 +62,12 @@ App.Views.Catering.Modals = (function () {
     }
   }
 
+  /* High-Res Photo Lightbox Viewer */
   function viewItemPhoto(itemId) {
     var it = S.item(itemId);
     if (!it) return;
     if (!it.photoId) {
-      openItemDetail(itemId);
+      U.toast('No photo attached yet. Add one in Shelf.');
       return;
     }
     var cat = S.category(it.categoryId);
@@ -74,6 +78,7 @@ App.Views.Catering.Modals = (function () {
     U.openLightbox(it.photoId, it.name, metaHtml);
   }
 
+  /* Item Details Modal with Direct Shelf Link & Lightbox Enlarge */
   function openItemDetail(itemId, isBack) {
     var it = S.item(itemId);
     if (!it) return;
@@ -87,43 +92,174 @@ App.Views.Catering.Modals = (function () {
     if (ev && ev.lines) {
       ev.lines.forEach(function (l) { if (l.itemId === itemId) line = l; });
     }
+
     var cat = S.category(it.categoryId);
     var photoKey = it.photoId ? it.photoId : '';
     var brandLabel = it.brand || it.tagLabel || 'Loreto';
+    var isConsumable = !!it.isConsumable;
+    var stockQty = it.qty || 0;
+    var lowThreshold = it.lowStockThreshold || 2;
+    var isLowStock = stockQty <= lowThreshold;
+    var isStaging = !ev || ev.status === 'staging';
 
-    var statsHtml = line ? (
-      '<div class="kpi-grid mb12">' +
-        '<div class="kpi"><div class="kpi-in"><div class="kpi-n">' + line.out + '</div><div class="kpi-l">Staged in Van</div></div></div>' +
-        '<div class="kpi"><div class="kpi-in"><div class="kpi-n" style="color:var(--foliage)">' + line.back + '</div><div class="kpi-l">Back in Hand</div></div></div>' +
-      '</div>'
-    ) : '';
+    var statsHtml = '';
+    var statusBanner = '';
+    var actionBtnHtml = '';
+
+    if (isStaging) {
+      // 1. VAN STAGING / LOADING CONTEXT
+      var stagedQty = line ? (line.out || 0) : 0;
+      var isExceeding = stagedQty > stockQty;
+
+      statsHtml =
+        '<div class="kpi-grid mb12">' +
+          '<div class="kpi">' +
+            '<div class="kpi-in">' +
+              '<div class="kpi-n" style="color:' + (isLowStock ? 'var(--alert)' : 'var(--foliage)') + '">' + stockQty + '</div>' +
+              '<div class="kpi-l">In Commissary</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="kpi">' +
+            '<div class="kpi-in">' +
+              '<div class="kpi-n" style="color:' + (isExceeding ? 'var(--alert)' : 'var(--timber-ink)') + '">' + stagedQty + '</div>' +
+              '<div class="kpi-l">Staged in Van</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      if (isExceeding) {
+        statusBanner =
+          '<div class="card mb12" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:9px 11px">' +
+            '<div class="row" style="color:var(--alert);font-size:12px;font-weight:700">' +
+              U.icon('alertTriangle', 'mr4') + 'Exceeds stock by ' + (stagedQty - stockQty) + ' ' + U.esc(it.unit) +
+            '</div>' +
+            '<p class="muted mt2" style="font-size:11px;color:var(--alert)">Van count is higher than commissary stock.</p>' +
+          '</div>';
+      } else if (stagedQty > 0) {
+        var remainingShelf = stockQty - stagedQty;
+        statusBanner =
+          '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line);padding:7px 11px">' +
+            '<div class="row row-between" style="font-size:11.5px">' +
+              '<span class="muted">Remaining on shelf:</span>' +
+              '<strong style="color:var(--foliage)">' + remainingShelf + ' ' + U.esc(it.unit) + ' left</strong>' +
+            '</div>' +
+          '</div>';
+      } else {
+        statusBanner =
+          '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line);padding:7px 11px">' +
+            '<div class="row row-between" style="font-size:11.5px">' +
+              '<span class="muted">Van load status:</span>' +
+              '<span class="muted">Not staged yet</span>' +
+            '</div>' +
+          '</div>';
+      }
+
+      if (ev) {
+        actionBtnHtml =
+          '<button type="button" class="btn btn-primary mb8" data-act="open-qty-modal-from-detail" data-id="' + it.id + '">' +
+            (stagedQty > 0 ? U.icon('edit', 'mr4') + ' Adjust Van Count (' + stagedQty + ')' : U.icon('plus', 'mr4') + ' Add to Van Load') +
+          '</button>';
+      }
+
+    } else {
+      // 2. LIVE ON LOCATION / PACK DOWN CONTEXT
+      var outQty = line ? (line.out || 0) : 0;
+      var backQty = line ? (line.back || 0) : 0;
+      var missingQty = isConsumable ? 0 : Math.max(0, outQty - backQty);
+      var usedQty = isConsumable ? Math.max(0, outQty - backQty) : 0;
+
+      statsHtml =
+        '<div class="kpi-grid mb8">' +
+          '<div class="kpi">' +
+            '<div class="kpi-in">' +
+              '<div class="kpi-n">' + outQty + '</div>' +
+              '<div class="kpi-l">Loaded in Van</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="kpi">' +
+            '<div class="kpi-in">' +
+              '<div class="kpi-n" style="color:' + (missingQty > 0 ? 'var(--alert)' : 'var(--foliage)') + '">' + backQty + '</div>' +
+              '<div class="kpi-l">Returned Back</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card mb12" style="padding:7px 11px;background:var(--sand-soft);border-color:var(--line)">' +
+          '<div class="row row-between" style="font-size:12px">' +
+            '<span class="muted">Total Commissary Stock:</span>' +
+            '<strong style="color:var(--timber-ink)">' + stockQty + ' ' + U.esc(it.unit) + '</strong>' +
+          '</div>' +
+        '</div>';
+
+      if (missingQty > 0) {
+        statusBanner =
+          '<div class="card mb12" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:9px 11px">' +
+            '<div class="row" style="color:var(--alert);font-size:12px;font-weight:700">' +
+              U.icon('alertTriangle', 'mr4') + missingQty + ' ' + U.esc(it.unit) + ' missing from return' +
+            '</div>' +
+          '</div>';
+      } else if (isConsumable && usedQty > 0) {
+        statusBanner =
+          '<div class="card mb12" style="background:var(--sand-soft);border-color:var(--line);padding:7px 11px">' +
+            '<div class="row row-between" style="font-size:11.5px">' +
+              '<span class="muted">Supplies used on site:</span>' +
+              '<strong style="color:var(--gold)">' + usedQty + ' ' + U.esc(it.unit) + ' consumed</strong>' +
+            '</div>' +
+          '</div>';
+      } else if (outQty > 0 && backQty >= outQty) {
+        statusBanner =
+          '<div class="card mb12" style="background:var(--success-tint);border-color:rgba(36,90,62,0.3);padding:7px 11px">' +
+            '<div class="row" style="color:var(--success);font-size:12px;font-weight:700">' +
+              U.icon('check', 'mr4') + 'All ' + outQty + ' pieces accounted for' +
+            '</div>' +
+          '</div>';
+      }
+
+      if (line) {
+        actionBtnHtml =
+          '<button type="button" class="btn btn-primary mb8" data-act="open-pack-modal-from-detail" data-id="' + it.id + '">' +
+            U.icon('check', 'mr4') + ' Record Returns (' + backQty + '/' + outQty + ')' +
+          '</button>';
+      }
+    }
 
     var backBtnHtml = Nav.hasBack()
-      ? '<button type="button" class="btn btn-ghost mt8" data-act="modal-back">&larr; Back</button>'
-      : '<button type="button" class="btn btn-primary" data-act="sheet-close">Done</button>';
+      ? '<button type="button" class="btn btn-ghost" data-act="modal-back">&larr; Back</button>'
+      : '<button type="button" class="btn btn-ghost" data-act="sheet-close">Done</button>';
 
     var html =
       '<div style="text-align:center;margin-bottom:12px">' +
-        '<div class="staff-avatar-large" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + it.id + '" style="width:84px;height:84px;border-radius:18px;margin:0 auto 8px auto;border:2px solid var(--line);background-color:var(--sand-soft);cursor:pointer;position:relative">' +
+        '<div class="staff-avatar-large" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + it.id + '" style="width:78px;height:78px;border-radius:18px;margin:0 auto 8px auto;border:2px solid var(--line);background-color:var(--sand-soft);cursor:pointer;position:relative">' +
           (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
+          (photoKey ? '<div style="position:absolute;bottom:0;right:0;background:rgba(33,29,26,0.85);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.3)">' + U.icon('zoom') + '</div>' : '') +
         '</div>' +
-        '<h3 style="font-family:Iowan Old Style,Georgia,serif;font-size:18px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' +
+        '<h3 style="font-family:Iowan Old Style,Georgia,serif;font-size:17.5px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' +
           U.esc(it.name) +
         '</h3>' +
         '<div class="row" style="justify-content:center;margin-top:6px;flex-wrap:wrap;gap:4px">' +
           U.tag(brandLabel, it.tagColor) +
-          (it.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+          (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
           (cat ? '<span class="tag tag-white" style="font-size:9.5px">' + U.esc(cat.name) + '</span>' : '') +
         '</div>' +
+        (photoKey ? '<button type="button" class="btn btn-ghost btn-sm mt8" data-act="thumb-click" data-id="' + it.id + '" style="width:auto;min-height:28px;padding:2px 10px;font-size:11px;margin:8px auto 0 auto">' + U.icon('zoom', 'mr4') + 'Enlarge Photo</button>' : '') +
       '</div>' +
       statsHtml +
+      statusBanner +
       '<div class="card mb12">' +
-        '<div class="row row-between mb4"><span class="muted">Total Owned:</span><strong>' + it.qty + ' ' + U.esc(it.unit) + '</strong></div>' +
-        '<div class="row row-between mb4"><span class="muted">Low Stock Threshold:</span><span>' + (it.lowStockThreshold || 2) + ' ' + U.esc(it.unit) + '</span></div>' +
+        '<div class="row row-between mb4"><span class="muted">Commissary Stock:</span><strong>' + stockQty + ' ' + U.esc(it.unit) + '</strong></div>' +
+        '<div class="row row-between mb4"><span class="muted">Low Stock Threshold:</span><span>' + lowThreshold + ' ' + U.esc(it.unit) + '</span></div>' +
         (it.brand ? '<div class="row row-between mb4"><span class="muted">Brand / Stamp:</span><span>' + U.esc(it.brand) + '</span></div>' : '') +
         (it.note ? '<div class="mt8 pt8" style="border-top:1px solid var(--line)"><span class="muted">Notes:</span><p style="margin-top:2px;font-size:12.5px">' + U.esc(it.note) + '</p></div>' : '') +
       '</div>' +
-      '<div class="sheet-sticky-footer">' + backBtnHtml + '</div>';
+
+      /* DIRECT LINK TO SHELF (INVENTORY AUDIT & DETAIL) */
+      '<button type="button" class="btn btn-ghost mb8" data-act="goto-inventory-item" data-id="' + it.id + '" style="border-color:var(--line-strong);background:var(--sand-soft)">' +
+        U.icon('package', 'mr4') + ' View on Shelf (Audit & Edit)' +
+      '</button>' +
+
+      '<div class="sheet-sticky-footer">' +
+        actionBtnHtml +
+        backBtnHtml +
+      '</div>';
 
     var dir = isBack ? 'back' : (Nav.hasBack() ? 'forward' : 'none');
     var body = U.openSheet('Item Details', html, delegate, dir);
@@ -162,7 +298,7 @@ App.Views.Catering.Modals = (function () {
             '<h3 style="font-size:15px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' + U.esc(it.name) + '</h3>' +
             '<div class="row mt4" style="flex-wrap:wrap;gap:4px">' +
               U.tag(it.brand || it.tagLabel || 'Loreto', it.tagColor) +
-              '<span class="muted" style="font-size:11px">' + maxStock + ' in inventory</span>' +
+              '<span class="muted" style="font-size:11px">' + maxStock + ' in commissary</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -316,14 +452,33 @@ App.Views.Catering.Modals = (function () {
       U.closeSheet();
       return true;
     }
+    if (act === 'lightbox-close') {
+      U.closeLightbox();
+      return true;
+    }
 
     if (act === 'thumb-click') { viewItemPhoto(id); return true; }
     if (act === 'inspect-item') { openItemDetail(id); return true; }
     if (act === 'open-qty-modal') { openQtyModal(id, false); return true; }
     if (act === 'open-qty-modal-chk') { openQtyModal(id, true); return true; }
+    if (act === 'open-qty-modal-from-detail') { openQtyModal(id, false); return true; }
     if (act === 'open-pack-modal') { openPackReturnModal(id); return true; }
+    if (act === 'open-pack-modal-from-detail') { openPackReturnModal(id); return true; }
     if (act === 'export-manifest-text') { openTextManifest(ev); return true; }
     if (act === 'open-staff-picker') { openStaffPicker(); return true; }
+
+    /* 1-Tap Jump to Shelf (Inventory Audit & Editing) */
+    if (act === 'goto-inventory-item') {
+      if (Nav) Nav.clear();
+      U.closeSheet();
+      App.go('inventory');
+      setTimeout(function () {
+        if (App.Views.inventory && App.Views.inventory.openStats) {
+          App.Views.inventory.openStats(id, true);
+        }
+      }, 80);
+      return true;
+    }
 
     if (act === 'modal-qty-delta') {
       var delta = parseInt(el.getAttribute('data-delta'), 10) || 0;
@@ -397,13 +552,9 @@ App.Views.Catering.Modals = (function () {
       var pMax = parseInt(el.getAttribute('data-max'), 10) || 9999;
       var finalReturnQty = Math.min(pMax, Math.max(0, parseInt(pSaveInput ? pSaveInput.value : 0, 10) || 0));
       S.setBack(ev, id, finalReturnQty);
-      if (Nav.hasBack()) {
-        Nav.back();
-      } else {
-        Nav.clear();
-        U.closeSheet();
-        App.rerenderQuiet();
-      }
+      if (Nav) Nav.clear();
+      U.closeSheet();
+      App.rerenderQuiet();
       U.toast('Return count saved.');
       return true;
     }
@@ -430,7 +581,7 @@ App.Views.Catering.Modals = (function () {
       var isAssigned = (ev.staffIds || []).indexOf(id) > -1;
       if (isAssigned) S.unassignStaff(ev, id);
       else S.assignStaff(ev, id);
-      openStaffPicker(true, 'none'); // Update in place without horizontal slide
+      openStaffPicker(true, 'none');
       App.rerenderQuiet();
       return true;
     }

@@ -1,5 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Inventory (js/views/inventory.js)
+   - Direct 2-way routing to Catering: "Return to Catering Load-out" action
+   - Lightbox modal integration: tap gear photo to enlarge with zoom badge
    - Reusable Icon View Switcher (Cards / Compact Accordion / 3-Col Grid)
    - Reusable Pagination Bar with Page Size selector (5, 10, 15, 25 items)
    - Category scroll lock: exact scrollLeft position preserved without moving
@@ -14,13 +16,14 @@ App.Views = App.Views || {};
 App.Views.inventory = (function () {
   var U = App.UI, S = App.Store;
   var q = '', cat = '', sortField = 'alpha', sortDir = 'asc', stockFilter = 'all';
-  var viewMode = 'cards'; // 'cards' | 'compact' | 'grid'
-  var openAccordions = {}; // catId -> boolean
+  var viewMode = 'cards';
+  var openAccordions = {};
   var page = 1;
   var pageSize = 10;
   var totalPages = 1;
   var chipsScrollLeft = 0;
   var docListenerAttached = false;
+  var openedFromCatering = false;
 
   var pendingPhoto = null, editingId = null;
   var selectedTagColor = 'orange', selectedCategoryId = '';
@@ -70,7 +73,6 @@ App.Views.inventory = (function () {
 
     var isCurrentlyOpen = menu && menu.classList.contains('show');
 
-    // Close all open dropdowns
     for (var i = 0; i < allMenus.length; i++) allMenus[i].classList.remove('show');
     for (var j = 0; j < allBtns.length; j++) {
       allBtns[j].classList.remove('active');
@@ -79,7 +81,6 @@ App.Views.inventory = (function () {
     for (var k = 0; k < allChevrons.length; k++) allChevrons[k].classList.remove('open');
     for (var m = 0; m < allDropdowns.length; m++) allDropdowns[m].style.zIndex = '';
 
-    // If it wasn't open, open it cleanly without touching the rest of the DOM
     if (!isCurrentlyOpen && menu && btn) {
       if (parentDd) parentDd.style.zIndex = '70';
       menu.classList.add('show');
@@ -368,16 +369,19 @@ App.Views.inventory = (function () {
   function mounted(root) {
     U.hydrateThumbs(root);
 
-    // Keep category scroll completely locked where user left it
     var chipsEl = root.querySelector('.chips.filter-bar');
     if (chipsEl) {
-      chipsEl.scrollLeft = chipsScrollLeft;
+      if (chipsScrollLeft > 0) {
+        chipsEl.scrollLeft = chipsScrollLeft;
+        requestAnimationFrame(function () {
+          if (chipsEl) chipsEl.scrollLeft = chipsScrollLeft;
+        });
+      }
       chipsEl.addEventListener('scroll', function () {
         chipsScrollLeft = chipsEl.scrollLeft;
       }, { passive: true });
     }
 
-    // Dismiss open custom dropdowns when clicking outside without re-rendering view
     if (!docListenerAttached) {
       docListenerAttached = true;
       document.addEventListener('click', function (e) {
@@ -403,7 +407,9 @@ App.Views.inventory = (function () {
     }
   }
 
-  function openStats(id) {
+  /* Full Item Stats, Usage Trend & Audit Modal (with Lightbox Enlarge & Catering Return) */
+  function openStats(id, fromCatering) {
+    openedFromCatering = !!fromCatering;
     var stats = S.itemStats(id);
     if (!stats) return;
     var it = stats.item;
@@ -443,18 +449,26 @@ App.Views.inventory = (function () {
       '</div>'
     ) : '';
 
+    var returnToCateringBtn = openedFromCatering ? (
+      '<button type="button" class="btn btn-primary mb8" data-act="return-to-catering">' +
+        U.icon('truck', 'mr4') + ' Return to Catering Load-out' +
+      '</button>'
+    ) : '';
+
     var html =
+      returnToCateringBtn +
+
       '<div class="card mb12">' +
         '<div class="row row-start">' +
-          '<div class="thumb" id="dash-photo-box" data-act="dash-pick-photo" style="width:60px;height:60px;flex:0 0 60px;margin-right:12px;cursor:pointer;position:relative"' +
+          '<div class="thumb" id="dash-photo-box" data-act="' + (it.photoId ? 'view-inv-photo' : 'dash-pick-photo') + '" data-id="' + it.id + '" style="width:62px;height:62px;flex:0 0 62px;margin-right:12px;cursor:pointer;position:relative"' +
             (it.photoId ? ' data-photo="' + it.photoId + '"' : '') + '>' +
             (it.photoId ? '' : U.icon(catIcon)) +
-            '<div style="position:absolute;bottom:0;right:0;background:rgba(33,29,26,0.85);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center">' +
-              U.icon('camera') +
+            '<div data-act="dash-pick-photo" title="Change photo" style="position:absolute;bottom:-4px;right:-4px;background:rgba(33,29,26,0.85);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.3)">' +
+              U.icon(it.photoId ? 'camera' : 'plus') +
             '</div>' +
           '</div>' +
-          '<div class="grow">' +
-            '<h3 style="font-size:16px;font-weight:700;color:var(--timber-ink)">' + U.esc(it.name) + '</h3>' +
+          '<div class="grow" style="min-width:0">' +
+            '<h3 style="font-size:16px;font-weight:700;color:var(--timber-ink);word-break:break-word">' + U.esc(it.name) + '</h3>' +
             '<p class="muted mt2" style="font-size:12px">' +
               U.esc(c ? c.name : 'Uncategorised') + ' &middot; in ' + U.esc(it.unit) + 's' +
             '</p>' +
@@ -463,6 +477,16 @@ App.Views.inventory = (function () {
               (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
               (it.tagLabel && it.brand ? '<span class="muted ml4" style="font-size:11px">' + U.esc(it.tagLabel) + '</span>' : '') +
             '</div>' +
+            (it.photoId ? (
+              '<div class="row mt6" style="gap:6px">' +
+                '<button type="button" class="btn btn-ghost btn-sm" data-act="view-inv-photo" data-id="' + it.id + '" style="width:auto;min-height:28px;padding:2px 8px;font-size:11px">' +
+                  U.icon('zoom', 'mr4') + 'Enlarge' +
+                '</button>' +
+                '<button type="button" class="btn btn-ghost btn-sm" data-act="dash-pick-photo" style="width:auto;min-height:28px;padding:2px 8px;font-size:11px">' +
+                  U.icon('camera', 'mr4') + 'Change' +
+                '</button>' +
+              '</div>'
+            ) : '') +
           '</div>' +
         '</div>' +
         '<input class="hidden-file" type="file" id="dash-file" accept="image/*">' +
@@ -557,7 +581,7 @@ App.Views.inventory = (function () {
           S.saveItem(it);
           U.toast('Photo updated.');
           App.rerenderQuiet();
-          openStats(it.id);
+          openStats(it.id, openedFromCatering);
         });
       });
     }
@@ -860,7 +884,9 @@ App.Views.inventory = (function () {
       if (chipsBar) {
         chipsScrollLeft = chipsBar.scrollLeft;
       }
-      cat = el.getAttribute('data-id');
+      var targetCat = el.getAttribute('data-id');
+      if (!targetCat) chipsScrollLeft = 0;
+      cat = targetCat;
       page = 1;
       closeAllDropdowns();
       App.rerenderQuiet();
@@ -953,7 +979,27 @@ App.Views.inventory = (function () {
     }
     else if (act === 'open-stats') {
       closeAllDropdowns();
-      openStats(el.getAttribute('data-id'));
+      openStats(el.getAttribute('data-id'), false);
+    }
+    else if (act === 'return-to-catering') {
+      U.closeSheet();
+      App.go('catering');
+    }
+    else if (act === 'view-inv-photo') {
+      var photoItemId = el.getAttribute('data-id');
+      var itPhoto = S.item(photoItemId);
+      if (itPhoto && itPhoto.photoId) {
+        var catObj = S.category(itPhoto.categoryId);
+        var metaHtml = U.tag(itPhoto.brand || itPhoto.tagLabel || 'Loreto', itPhoto.tagColor) +
+          (itPhoto.isConsumable ? ' <span class="tag tag-yellow" style="font-size:9.5px;margin-left:4px">Supply</span>' : '') +
+          (catObj ? ' <span class="tag tag-white" style="font-size:9.5px;margin-left:4px">' + U.esc(catObj.name) + '</span>' : '');
+        U.openLightbox(itPhoto.photoId, itPhoto.name, metaHtml);
+      } else {
+        U.toast('No photo attached to this item.');
+      }
+    }
+    else if (act === 'lightbox-close') {
+      U.closeLightbox();
     }
     else if (act === 'dash-pick-photo') {
       var df = document.getElementById('dash-file');
@@ -980,7 +1026,7 @@ App.Views.inventory = (function () {
         S.save();
         U.toast('Stock count & audit date saved.');
         App.rerenderQuiet();
-        openStats(saveId);
+        openStats(saveId, openedFromCatering);
       }
     }
     else if (act === 'pick-item-type') {

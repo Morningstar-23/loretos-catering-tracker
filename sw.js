@@ -1,11 +1,12 @@
 /* ==========================================================================
    sw.js — Loreto's Catering Tracker (Service Worker)
    - Cache-first app shell for 100% offline operation on iPhone 5s (iOS 12)
+   - Resilient asset pre-caching (individual error recovery)
    - Dynamic version broadcaster for Settings view
-   - Controlled update lifecycle (waits for user prompt / reload)
+   - Controlled update lifecycle
    ========================================================================== */
 
-var CACHE = 'lct-v25';
+var CACHE = 'lct-v26';
 
 var SHELL = [
   './',
@@ -17,7 +18,10 @@ var SHELL = [
   './js/ui.js',
   './js/views/dashboard.js',
   './js/views/inventory.js',
-  './js/views/catering.js',
+  './js/views/catering/catering.js',
+  './js/views/catering/catering-kits.js',
+  './js/views/catering/catering-modals.js',
+  './js/views/catering/catering-views.js',
   './js/views/history.js',
   './js/views/settings.js',
   './js/app.js',
@@ -29,11 +33,17 @@ var SHELL = [
   './icons/apple-splash-640x1136.png'
 ];
 
-// 1. Install: Pre-cache all shell assets
+// 1. Install: Pre-cache all shell assets with resilient error reporting
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) {
-      return c.addAll(SHELL);
+      return Promise.all(
+        SHELL.map(function (url) {
+          return c.add(url).catch(function (err) {
+            console.warn('[SW] Could not pre-cache: ' + url, err);
+          });
+        })
+      );
     })
   );
 });

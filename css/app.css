@@ -1,6 +1,8 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Stylesheet (css/app.css)
    - Native App Shell: Rigid viewport lock (Zero drag-to-reload / rubberband)
+   - Zero emojis: Clean vector SVG icon alignments across all badges & pills
+   - Dedicated Stock Warning / Shortage Filter Chip & Banner States
    - Anti-Flash Button Actions & Spring Tap Feedback (iOS 12 Safari / iPhone 5s)
    - View Mode Switcher: Animated "Magic Pill" Background Glider
    - Standalone Grid Density Bar (Zero Top-Bar Layout Shift)
@@ -670,11 +672,11 @@ body {
   border-radius: 9px;
 }
 .staff-avatar-large {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: var(--inasal-soft);
-  color: var(--inasal-orange);
+  width: 78px;
+  height: 78px;
+  border-radius: 18px;
+  background: var(--sand-soft);
+  color: var(--timber-soft);
   border: 2px solid var(--line);
   display: flex;
   align-items: center;
@@ -684,6 +686,11 @@ body {
   background-position: center;
   position: relative;
   box-shadow: var(--shadow-sm);
+}
+.staff-avatar-large .icon {
+  width: 32px;
+  height: 32px;
+  color: var(--timber-soft);
 }
 
 .item-name {
@@ -735,6 +742,16 @@ body {
 .pack-short {
   color: var(--alert);
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+.pack-short .icon,
+.pack-short .tag-svg-icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.3;
+  margin-right: 3px;
+  flex-shrink: 0;
 }
 
 .tag {
@@ -748,6 +765,14 @@ body {
   letter-spacing: 0.045em;
   white-space: nowrap;
   transform: rotate(-0.4deg);
+}
+
+.tag-svg-icon {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.2;
+  margin-right: 3px;
+  flex-shrink: 0;
 }
 
 .tag-orange { background: #FFE8D6; color: #C8521A; border: 1px solid #F5C6AA; }
@@ -899,7 +924,7 @@ body {
   box-shadow: var(--shadow-xs);
   transition: transform 0.15s var(--ease-spring), background-color 0.15s ease, color 0.15s ease;
 }
-.chip .icon { width: 13px; height: 13px; margin-right: 5px; }
+.chip .icon { width: 13px; height: 13px; margin-right: 5px; flex-shrink: 0; }
 .chip:active { transform: scale(0.92); }
 
 .chip.on {
@@ -907,6 +932,25 @@ body {
   color: #FFFFFF;
   border-color: transparent;
   box-shadow: var(--shadow-orange-sm);
+}
+
+/* Dedicated Warning / Shortage Filter Chip */
+.chip.chip-warning {
+  border-color: rgba(214, 57, 32, 0.4);
+  color: var(--alert);
+  background: var(--sand-card);
+}
+.chip.chip-warning .icon {
+  color: var(--alert);
+}
+.chip.chip-warning.on {
+  background: linear-gradient(160deg, #E0442B 0%, var(--alert) 100%);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(214, 57, 32, 0.35);
+}
+.chip.chip-warning.on .icon {
+  color: #FFFFFF;
 }
 
 .search {
@@ -1868,7 +1912,7 @@ body {
   will-change: transform, width;
 }
 
-/* Fallback pure-CSS positioning when JS is initialising */
+/* Pure CSS fallback positioning */
 .view-mode-pills[data-mode="cards"] .view-mode-glider {
   -webkit-transform: translate3d(2px, 0, 0);
   transform: translate3d(2px, 0, 0);
@@ -1913,7 +1957,7 @@ body {
   margin: 0;
 }
 
-/* View Content Smooth Fade-In on Switch (Zero scale blur on iPhone 5s) */
+/* View Content Smooth Fade-In on Switch */
 .view-content-enter {
   -webkit-animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation: viewModeFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -1929,7 +1973,7 @@ body {
 }
 
 /* ==========================================================================
-   Dedicated Grid Density Toolbar (Placed inside Grid View without top-shift)
+   Dedicated Grid Density Toolbar
    ========================================================================== */
 .grid-density-bar {
   display: flex;
@@ -2197,9 +2241,13 @@ body {
 .swipe-row-content.swiped {
   transform: translate3d(-76px, 0, 0);
 }
+.swipe-row-content.card-shortage {
+  border-left: 4px solid var(--alert);
+  background: #FFFCFB;
+}
 
 /* ==========================================================================
-   Responsive E-Commerce Grid: 2, 3, or 4 Columns per Row (iPhone 5s Optimized)
+   Responsive E-Commerce Grid: 2, 3, or 4 Columns per Row (iPhone 5s)
    ========================================================================== */
 .ecommerce-grid {
   display: grid;
@@ -2366,6 +2414,12 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
+}
+.grid-staged-pill .tag-svg-icon {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.3;
+  margin-right: 2px;
 }
 .grid-staged-pill.done {
   background: var(--success-tint);

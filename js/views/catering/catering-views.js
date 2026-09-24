@@ -1,7 +1,9 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 3: Views (js/views/catering/catering-views.js)
+   - Zero emojis: 100% clean Lucide/Feather vector SVG iconography
+   - Removed re-render animation wrappers (Eliminates quantity change flashing)
+   - Vector warning badges for stock shortages in card, compact, and grid views
    - Adjustable 2, 3, or 4 Column E-Commerce Grid with dedicated density bar
-   - Zero-layout-shift view mode architecture & view-content-enter animations
    - Independent Per-Category Pagination inside Collapsible Accordions
    - Multi-line word-wrap on item names and kit presets (no truncated ellipses)
    - Category icons matching Commissary inventory
@@ -51,7 +53,7 @@ App.Views.Catering.Views = (function () {
         '<span class="item-name" style="word-break:break-word;line-height:1.24;display:block">' + U.esc(p.name) + '</span>' +
         '<span class="item-sub">' + p.lines.length + ' kinds &middot; ' + (avail ? avail.totalNeeded : 0) + ' pcs</span>' +
         '<span class="row mt4">' +
-          (isShort ? '<span class="tag tag-red" style="font-size:9.5px">' + avail.shortCount + ' short</span>'
+          (isShort ? '<span class="tag tag-red" style="font-size:9.5px;display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + avail.shortCount + ' short</span>'
                    : '<span class="tag tag-green" style="font-size:9.5px">Ready in stock</span>') +
         '</span>' +
       '</span>' +
@@ -125,15 +127,18 @@ App.Views.Catering.Views = (function () {
     '</div>';
   }
 
+  /* Cards View (No animation wrapper to eliminate flashing on qty change) */
   function renderCardsView(lines, isOut, evPresetId) {
-    var rows = lines.map(function (l) {
+    return lines.map(function (l) {
       var it = S.item(l.itemId);
       var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
       var cat = it ? S.category(it.categoryId) : null;
       var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
 
       var alertTag = stat.isExceeding
-        ? '<span class="tag tag-red" style="font-size:9.5px;font-weight:700">⚠️ OVER STOCK: ' + stat.staged + ' vs ' + stat.owned + '</span>'
+        ? '<span class="tag tag-red" style="font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;gap:3px">' +
+            U.icon('alertTriangle', 'tag-svg-icon') + 'Over stock: ' + stat.staged + ' vs ' + stat.owned +
+          '</span>'
         : (stat.presetTarget !== null && stat.kitDiff !== 0 ? '<span class="tag tag-yellow" style="font-size:9.5px">Kit: ' + stat.presetTarget + '</span>' : '');
 
       return '<div class="swipe-row-outer" data-swipe-id="' + l.itemId + '">' +
@@ -144,7 +149,10 @@ App.Views.Catering.Views = (function () {
               '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + l.itemId + '">' + (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') + '</span>' +
               '<div class="grow pack-item-clickable" data-act="inspect-item" data-id="' + l.itemId + '" style="min-width:0">' +
                 '<span class="item-name" style="word-break:break-word;line-height:1.24;display:block">' + U.esc(l.name) + '</span>' +
-                '<div class="pack-tags-wrap">' + U.tag(l.brand || l.tagLabel || 'Loreto', l.tagColor) + (l.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') + alertTag +
+                '<div class="pack-tags-wrap">' +
+                  U.tag(l.brand || l.tagLabel || 'Loreto', l.tagColor) +
+                  (l.isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
+                  alertTag +
                   '<span class="muted" style="font-size:11px">' + l.out + ' ' + U.esc(l.unit) + ' (Stock: ' + stat.owned + ')</span>' +
                 '</div>' +
               '</div>' +
@@ -162,10 +170,9 @@ App.Views.Catering.Views = (function () {
         '</div>' +
       '</div>';
     }).join('');
-
-    return '<div class="view-content-enter">' + rows + '</div>';
   }
 
+  /* Compact View */
   function renderCompactView(lines, isOut, evPresetId, openAccordions, catPages) {
     var cats = S.categories();
     var groups = {}, uncat = [];
@@ -195,8 +202,11 @@ App.Views.Catering.Views = (function () {
         return '<div class="compact-item-row' + (stat.isExceeding ? ' short' : '') + '">' +
           '<div class="compact-item-info" data-act="open-qty-modal" data-id="' + l.itemId + '">' +
             '<div class="compact-item-name" style="word-break:break-word;line-height:1.22">' + U.esc(l.name) + '</div>' +
-            '<div class="compact-item-meta">' + U.tag(l.brand || l.tagLabel || 'Loreto', l.tagColor) +
-              '<span class="' + (stat.isExceeding ? 'tag tag-red ml4' : 'muted ml4') + '" style="font-size:10px">Stock: ' + stat.owned + '</span>' +
+            '<div class="compact-item-meta">' +
+              U.tag(l.brand || l.tagLabel || 'Loreto', l.tagColor) +
+              (stat.isExceeding
+                ? '<span class="tag tag-red ml4" style="font-size:9.5px;display:inline-flex;align-items:center;gap:2px">' + U.icon('alertTriangle', 'tag-svg-icon') + 'Stock: ' + stat.owned + '</span>'
+                : '<span class="muted ml4" style="font-size:10px">Stock: ' + stat.owned + '</span>') +
             '</div>' +
           '</div>' +
           '<div class="stepper">' +
@@ -224,10 +234,10 @@ App.Views.Catering.Views = (function () {
         '<div class="cat-accordion-body">' + rows + pagHtml + '</div>' +
       '</div>';
     });
-    return '<div class="view-content-enter">' + html + '</div>';
+    return html;
   }
 
-  /* Adjustable 2, 3, or 4 Column Responsive E-Commerce Grid with dedicated sub-toolbar */
+  /* Grid View */
   function renderGridView(lines, evPresetId, gridCols) {
     var cols = parseInt(gridCols, 10) || 2;
     var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-grid-cols') : '';
@@ -238,8 +248,10 @@ App.Views.Catering.Views = (function () {
       var cat = it ? S.category(it.categoryId) : null;
       var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
 
-      var pillText = stat.isExceeding
-        ? (cols >= 4 ? '+' + stat.shortCount : '⚠️ Short +' + stat.shortCount)
+      var pillHtml = stat.isExceeding
+        ? (cols >= 4
+            ? '+' + stat.shortCount
+            : '<span style="display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + 'Short +' + stat.shortCount + '</span>')
         : (cols >= 4 ? l.out + ' van' : l.out + ' in van (' + stat.owned + ')');
 
       return '<div class="grid-item-card" data-act="open-qty-modal" data-id="' + l.itemId + '">' +
@@ -249,16 +261,17 @@ App.Views.Catering.Views = (function () {
         '</div>' +
         '<div class="grid-title">' + U.esc(l.name) + '</div>' +
         '<div class="grid-staged-pill ' + (stat.isExceeding ? 'short' : 'done') + ' truncate">' +
-          pillText +
+          pillHtml +
         '</div>' +
       '</div>';
     }).join('');
 
-    return '<div class="view-content-enter">' + densityBar + '<div class="ecommerce-grid cols-' + cols + '">' + tiles + '</div></div>';
+    return densityBar + '<div class="ecommerce-grid cols-' + cols + '">' + tiles + '</div>';
   }
 
+  /* Pack Cards View */
   function renderPackCardsView(lines) {
-    var rows = lines.map(function (l) {
+    return lines.map(function (l) {
       var it = S.item(l.itemId);
       var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
       var cat = it ? S.category(it.categoryId) : null;
@@ -281,7 +294,9 @@ App.Views.Catering.Views = (function () {
           '<div class="pack-count" style="text-align:right;flex-shrink:0">' +
             (isConsumable
               ? (l.back === l.out ? '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>' : '<span class="muted" style="font-size:11px">' + l.back + ' back &middot; ' + (l.out - l.back) + ' used</span>')
-              : (short === 0 ? '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>' : '<span class="pack-short" style="font-size:12px">' + short + ' missing</span>')) +
+              : (short === 0
+                  ? '<strong style="color:var(--success);font-size:12px">All ' + l.out + ' back</strong>'
+                  : '<span class="pack-short" style="font-size:12px;display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + short + ' missing</span>')) +
           '</div>' +
         '</div>' +
         '<div class="row row-between mt8">' +
@@ -297,10 +312,9 @@ App.Views.Catering.Views = (function () {
         '</div>' +
       '</div>';
     }).join('');
-
-    return '<div class="view-content-enter">' + rows + '</div>';
   }
 
+  /* Pack Compact View */
   function renderPackCompactView(lines, openAccordions, catPages) {
     var cats = S.categories();
     var groups = {}, uncat = [];
@@ -333,7 +347,7 @@ App.Views.Catering.Views = (function () {
             '<div class="compact-item-name" style="word-break:break-word;line-height:1.22">' + U.esc(l.name) + '</div>' +
             '<div class="compact-item-meta">' +
               (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">' + l.back + '/' + l.out + ' back</span>'
-                            : (short === 0 ? '<strong style="color:var(--success);font-size:10.5px">All back</strong>' : '<span style="color:var(--alert);font-size:10.5px;font-weight:700">' + short + ' missing</span>')) +
+                            : (short === 0 ? '<strong style="color:var(--success);font-size:10.5px">All back</strong>' : '<span style="color:var(--alert);font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + short + ' missing</span>')) +
             '</div>' +
           '</div>' +
           '<div class="stepper">' +
@@ -361,10 +375,10 @@ App.Views.Catering.Views = (function () {
         '<div class="cat-accordion-body">' + rows + pagHtml + '</div>' +
       '</div>';
     });
-    return '<div class="view-content-enter">' + html + '</div>';
+    return html;
   }
 
-  /* Adjustable 2, 3, or 4 Column Pack Down Grid with dedicated sub-toolbar */
+  /* Pack Grid View */
   function renderPackGridView(lines, gridCols) {
     var cols = parseInt(gridCols, 10) || 2;
     var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-grid-cols') : '';
@@ -376,9 +390,11 @@ App.Views.Catering.Views = (function () {
       var isConsumable = !!l.isConsumable;
       var short = l.out - l.back;
 
-      var pillText = isConsumable
+      var pillHtml = isConsumable
         ? l.back + '/' + l.out + ' back'
-        : (short === 0 ? (cols >= 4 ? 'All' : 'All back') : (cols >= 4 ? '-' + short : short + ' missing'));
+        : (short === 0
+            ? (cols >= 4 ? 'All' : 'All back')
+            : (cols >= 4 ? '-' + short : '<span style="display:inline-flex;align-items:center;gap:3px">' + U.icon('alertTriangle', 'tag-svg-icon') + short + ' missing</span>'));
 
       return '<div class="grid-item-card" data-act="open-pack-modal" data-id="' + l.itemId + '">' +
         '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
@@ -387,12 +403,12 @@ App.Views.Catering.Views = (function () {
         '</div>' +
         '<div class="grid-title">' + U.esc(l.name) + '</div>' +
         '<div class="grid-staged-pill ' + (isConsumable ? 'supply' : (short === 0 ? 'done' : 'short')) + ' truncate">' +
-          pillText +
+          pillHtml +
         '</div>' +
       '</div>';
     }).join('');
 
-    return '<div class="view-content-enter">' + densityBar + '<div class="ecommerce-grid cols-' + cols + '">' + tiles + '</div></div>';
+    return densityBar + '<div class="ecommerce-grid cols-' + cols + '">' + tiles + '</div>';
   }
 
   function crewTab(ev) {
@@ -420,7 +436,7 @@ App.Views.Catering.Views = (function () {
       '<button type="button" class="btn btn-primary btn-sm" data-act="add-foreign" style="width:auto;padding:0 12px">' + U.icon('plus', 'mr4') + ' Flag item</button></div>' +
       '<p class="muted mt8" style="font-size:12px">Log venue plates or borrowed bowls so they get returned.</p></div>' +
       (ev.notOurs.length ? '<div class="list mb16">' + ev.notOurs.map(function (n) {
-        return '<div class="item"><span class="thumb" style="color:var(--alert)">' + U.icon('alert') + '</span><span class="grow mr8" style="min-width:0"><span class="item-name truncate">' + U.esc(n.label) + '</span><span class="item-sub">' + n.qty + ' pc' + (n.note ? ' &middot; ' + U.esc(n.note) : '') + '</span></span><button type="button" class="step-btn" data-act="del-foreign" data-id="' + n.id + '">' + U.icon('close') + '</button></div>';
+        return '<div class="item"><span class="thumb" style="color:var(--alert)">' + U.icon('alertTriangle') + '</span><span class="grow mr8" style="min-width:0"><span class="item-name truncate">' + U.esc(n.label) + '</span><span class="item-sub">' + n.qty + ' pc' + (n.note ? ' &middot; ' + U.esc(n.note) : '') + '</span></span><button type="button" class="step-btn" data-act="del-foreign" data-id="' + n.id + '">' + U.icon('close') + '</button></div>';
       }).join('') + '</div>' : U.empty('check', 'Nothing foreign flagged', 'All items belong to Loreto\u2019s.'));
   }
 

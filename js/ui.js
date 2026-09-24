@@ -1,13 +1,11 @@
 /* ==========================================================================
    Loreto's Catering Tracker — UI Utilities & Component Helpers (js/ui.js)
+   - Zero emojis: Clean, aesthetic Feather/Lucide vector SVG icons
+   - Added: alertTriangle, filter, warehouse, info, and box icons
    - Optimized for iPhone 5s (320px viewport) & iOS 12 Mobile Safari
-   - Reusable Component Helpers: viewModeToggle (with Magic Pill Glider),
-     gridDensityBar (zero layout-shift), topPaginationBar & catAccordionPagination
-   - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
-   - Auto-clearing navigation stack hook on closeSheet (fixes ghost Back buttons)
-   - High-Res Image Lightbox Modal with instant tap & swipe dismiss
-   - True Modal Isolation (#sheet-foot completely outside #sheet-body)
-   - Interactive Swipe-Down-To-Dismiss (Blocks browser pull-to-refresh)
+   - Reusable Component Helpers: viewModeToggle, gridDensityBar, topPaginationBar,
+     catAccordionPagination, paginationBar, and icon-capable tags
+   - Modal bottom sheet with directional page transitions & gesture dismiss
    ========================================================================== */
 window.App = window.App || {};
 
@@ -37,6 +35,11 @@ App.UI = (function () {
     minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
     search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
     alert: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    alertTriangle: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    warehouse: '<path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect width="12" height="12" x="6" y="10"/>',
+    box: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
     edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
     trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
     layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
@@ -94,10 +97,11 @@ App.UI = (function () {
     }
   }
 
-  function tag(label, color) {
+  function tag(label, color, iconName) {
     if (!label) return '';
     color = color || 'orange';
-    return '<span class="tag tag-' + color + '">' + esc(label) + '</span>';
+    var iconHtml = iconName ? icon(iconName, 'tag-svg-icon') : '';
+    return '<span class="tag tag-' + color + '">' + iconHtml + esc(label) + '</span>';
   }
 
   var SWATCH_COLORS = ['orange', 'red', 'yellow', 'green', 'blue', 'black', 'white'];
@@ -135,7 +139,6 @@ App.UI = (function () {
 
   /* ==========================================================================
      Reusable UI Component: View Mode Toggle (Animated Magic Pill Glider)
-     - Fixed 104px width: completely eliminates top-bar layout shift
      ========================================================================== */
   function viewModeToggle(currentMode, actName) {
     var act = actName || 'set-view-mode';
@@ -158,7 +161,6 @@ App.UI = (function () {
 
   /* ==========================================================================
      Reusable UI Component: Dedicated Grid Density Bar
-     - Sits directly above Grid items; never causes header layout shift
      ========================================================================== */
   function gridDensityBar(gridCols, colActName) {
     var cols = parseInt(gridCols, 10) || 2;
@@ -308,12 +310,11 @@ App.UI = (function () {
       sheetFootEl.style.display = 'none';
     }
 
-    /* Directional Inter-Modal Transition when Sheet is already mounted */
     if (isAlreadyOpen && transitionDir !== 'none') {
       var dirClass = (transitionDir === 'back') ? 'sheet-page-slide-back' : 'sheet-page-slide-forward';
       sheetBodyEl.classList.remove('sheet-page-slide-forward', 'sheet-page-slide-back');
       sheetTitleEl.classList.remove('sheet-title-fade');
-      void sheetBodyEl.offsetWidth; // Force synchronous reflow for reliable iOS animation replay
+      void sheetBodyEl.offsetWidth;
       sheetBodyEl.classList.add(dirClass);
       sheetTitleEl.classList.add('sheet-title-fade');
       if (sheetFootEl && sheetFootEl.style.display !== 'none') {
@@ -346,15 +347,12 @@ App.UI = (function () {
       sheetFootEl.style.display = 'none';
     }
 
-    // Auto-clear catering navigation stack whenever sheet is dismissed
     if (window.App && App.Views && App.Views.Catering && App.Views.Catering.Nav) {
       App.Views.Catering.Nav.clear();
     }
   }
 
-  /* ==========================================================================
-     High-Resolution Item Lightbox Engine
-     ========================================================================== */
+  /* High-Resolution Item Lightbox Engine */
   function openLightbox(photoKeyOrUrl, title, metaHtml) {
     boot();
     if (!lightboxEl) return;
@@ -610,7 +608,6 @@ App.UI = (function () {
       backdropEl.addEventListener('click', closeSheet, false);
     }
 
-    /* Lightbox Modal Mounting */
     lightboxEl = document.getElementById('lightbox');
     if (!lightboxEl) {
       lightboxEl = document.createElement('div');
