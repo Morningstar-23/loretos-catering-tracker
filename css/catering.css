@@ -5,10 +5,12 @@
    - Category Accordions & In-Place Per-Category Pagination
    - Universal Items-Per-Category Size Selector (320px iPhone 5s Safe)
    - Stock Discrepancy Reconciliation Modal & Alert Strip Layouts
+   - Hybrid Deficit Splitter: Linked Bought vs. Borrowed Steppers & 1-Tap Pills
+   - Pack-Down 3-Way Return Triage: Returned vs. Broken vs. Missing
+   - 1-Tap Reason Chip Clouds (Zero keyboard typing, margin-based, iOS 12 safe)
    - Bi-directional Swipe-to-Delete List Row Engine
-   - Responsive E-Commerce Grid
-   - Kit Preset Editor: Animated Sliding Pill Glider & Unclipped Two-Row Cards
-   - Optimized for iPhone 5s (iOS 12 / 320px viewport)
+   - Kit Preset Editor: Sliding Pill Glider & Unclipped Two-Row Cards
+   - Strictly optimized for iPhone 5s (iOS 12 / 320px viewport, NO flex gap)
    ========================================================================== */
 
 /* ==========================================================================
@@ -395,27 +397,43 @@
    Responsive E-Commerce Grid: 2, 3, or 4 Columns per Row (iPhone 5s)
    ========================================================================== */
 .ecommerce-grid {
-  display: grid;
-  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -3px 12px -3px;
 }
-.ecommerce-grid.cols-2 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.ecommerce-grid.cols-2 .grid-item-card { min-height: 165px; padding: 8px; }
+.ecommerce-grid.cols-2 .grid-item-card {
+  width: calc(50% - 6px);
+  margin: 3px;
+  min-height: 165px;
+  padding: 8px;
+  box-sizing: border-box;
+}
 .ecommerce-grid.cols-2 .grid-thumb-box { height: 96px; flex: 0 0 96px; margin-bottom: 6px; }
 .ecommerce-grid.cols-2 .grid-thumb-box .icon { width: 28px; height: 28px; }
 .ecommerce-grid.cols-2 .grid-qty-badge { font-size: 10.5px; padding: 2px 7px; }
 .ecommerce-grid.cols-2 .grid-title { font-size: 12.5px; min-height: 30px; line-height: 1.25; }
 .ecommerce-grid.cols-2 .grid-staged-pill { font-size: 10.5px; padding: 3px 6px; }
 
-.ecommerce-grid.cols-3 { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.ecommerce-grid.cols-3 .grid-item-card { min-height: 140px; padding: 6px 5px; }
+.ecommerce-grid.cols-3 .grid-item-card {
+  width: calc(33.333% - 6px);
+  margin: 3px;
+  min-height: 140px;
+  padding: 6px 5px;
+  box-sizing: border-box;
+}
 .ecommerce-grid.cols-3 .grid-thumb-box { height: 66px; flex: 0 0 66px; margin-bottom: 4px; }
 .ecommerce-grid.cols-3 .grid-thumb-box .icon { width: 22px; height: 22px; }
 .ecommerce-grid.cols-3 .grid-qty-badge { font-size: 9px; padding: 1px 5px; }
 .ecommerce-grid.cols-3 .grid-title { font-size: 11px; min-height: 26px; line-height: 1.2; }
 .ecommerce-grid.cols-3 .grid-staged-pill { font-size: 9.5px; padding: 2px 4px; }
 
-.ecommerce-grid.cols-4 { grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.ecommerce-grid.cols-4 .grid-item-card { min-height: 120px; padding: 4px; }
+.ecommerce-grid.cols-4 .grid-item-card {
+  width: calc(25% - 6px);
+  margin: 3px;
+  min-height: 120px;
+  padding: 4px;
+  box-sizing: border-box;
+}
 .ecommerce-grid.cols-4 .grid-thumb-box { height: 50px; flex: 0 0 50px; margin-bottom: 3px; border-radius: 6px; }
 .ecommerce-grid.cols-4 .grid-thumb-box .icon { width: 18px; height: 18px; }
 .ecommerce-grid.cols-4 .grid-qty-badge { font-size: 8.5px; padding: 1px 4px; }
@@ -545,6 +563,202 @@
   transition: transform 0.14s var(--ease-spring);
 }
 .quick-qty-pills button:active { transform: scale(0.88); }
+
+/* ==========================================================================
+   FEATURE 1: HYBRID DEFICIT SPLITTER (Bought vs. Borrowed)
+   ========================================================================== */
+.split-summary-card {
+  background: #FFFDF9;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--inasal-orange);
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  margin-bottom: 10px;
+}
+.split-deficit-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--alert-tint);
+  border: 1px solid rgba(214, 57, 32, 0.3);
+  color: var(--alert);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+}
+.split-stepper-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  padding: 9px 10px;
+  margin-bottom: 8px;
+}
+.split-stepper-card.bought {
+  border-left: 3.5px solid var(--foliage);
+}
+.split-stepper-card.borrowed {
+  border-left: 3.5px solid var(--inasal-orange);
+}
+.split-pill-presets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px -2px 10px -2px;
+}
+.split-pill-btn {
+  flex: 1 1 0%;
+  margin: 2px;
+  min-height: 32px;
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
+  background: var(--sand-card);
+  border: 1px solid var(--line-strong);
+  color: var(--timber-ink);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.14s var(--ease-spring), background-color 0.14s ease;
+}
+.split-pill-btn:active {
+  transform: scale(0.93);
+  background: var(--sand-soft);
+}
+.split-impact-box {
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.split-impact-item {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--timber-soft);
+  margin-bottom: 4px;
+}
+.split-impact-item:last-child {
+  margin-bottom: 0;
+}
+.split-impact-item b {
+  color: var(--timber-ink);
+}
+
+/* ==========================================================================
+   FEATURE 2: PACK-DOWN RETURN TRIAGE & 1-TAP REASON CHIPS
+   ========================================================================== */
+.pack-triage-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.pack-triage-grid {
+  display: flex;
+  margin: 0 -2px;
+}
+.pack-triage-col {
+  flex: 1 1 0%;
+  margin: 2px;
+  background: var(--sand-soft);
+  border-radius: 9px;
+  padding: 7px 4px;
+  text-align: center;
+}
+.pack-triage-col.col-returned {
+  border-top: 3px solid var(--foliage);
+}
+.pack-triage-col.col-broken {
+  border-top: 3px solid var(--alert);
+}
+.pack-triage-col.col-missing {
+  border-top: 3px solid #D49B42;
+}
+.pack-triage-num {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pack-triage-lbl {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--timber-soft);
+  margin-top: 2px;
+}
+
+.pack-step-card {
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.pack-step-card.intact-box {
+  border-left: 3.5px solid var(--foliage);
+}
+.pack-step-card.broken-box {
+  border-left: 3.5px solid var(--alert);
+}
+.pack-step-card.missing-box {
+  background: #FFFDF9;
+  border-left: 3.5px solid #D49B42;
+}
+
+/* Color Stepper Modifiers */
+.stepper-green .step-btn { color: var(--foliage); }
+.stepper-red .step-btn { color: var(--alert); }
+
+/* 1-Tap Reason Chip Clouds (No keyboard typing, strictly NO flex gap) */
+.pack-reason-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--timber-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 6px 0 4px 0;
+}
+.pack-chips-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -3px;
+}
+.pack-reason-chip {
+  flex: 0 0 auto;
+  margin: 3px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--sand-soft);
+  border: 1px solid var(--line-strong);
+  color: var(--timber-ink);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.14s var(--ease-spring), background-color 0.14s ease, border-color 0.14s ease;
+}
+.pack-reason-chip:active {
+  transform: scale(0.92);
+}
+.pack-reason-chip.chip-broken.on {
+  background: var(--alert-tint);
+  border-color: var(--alert);
+  color: var(--alert);
+  font-weight: 700;
+}
+.pack-reason-chip.chip-missing.on {
+  background: #FFF2DC;
+  border-color: #D49B42;
+  color: #8A6805;
+  font-weight: 700;
+}
 
 /* ==========================================================================
    CATERING UI v2 — layout system (Overrides & Touch Targets)
@@ -899,7 +1113,8 @@
 
 /* Catering Stepper */
 .lr-card .stepper,
-.catering-tab-pane .compact-item-row .stepper {
+.catering-tab-pane .compact-item-row .stepper,
+.pack-step-card .stepper {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
@@ -908,12 +1123,18 @@
   border-radius: var(--cat-ctl);
   box-shadow: none;
 }
-.lr-card .step-btn { position: relative; width: 44px; height: 44px; color: var(--timber-ink); }
-.lr-card .step-minus { border-radius: 11px 0 0 11px; }
-.lr-card .step-plus { border-radius: 0 11px 11px 0; color: var(--inasal-orange); }
-.lr-card .step-btn .icon { width: 17px; height: 17px; stroke-width: 2.2; }
-.lr-card .step-btn:active { background: var(--sand-soft); transform: none; }
-.lr-card .step-num {
+.lr-card .step-btn,
+.pack-step-card .step-btn { position: relative; width: 44px; height: 44px; color: var(--timber-ink); }
+.lr-card .step-minus,
+.pack-step-card .step-minus { border-radius: 11px 0 0 11px; }
+.lr-card .step-plus,
+.pack-step-card .step-plus { border-radius: 0 11px 11px 0; color: var(--inasal-orange); }
+.lr-card .step-btn .icon,
+.pack-step-card .step-btn .icon { width: 17px; height: 17px; stroke-width: 2.2; }
+.lr-card .step-btn:active,
+.pack-step-card .step-btn:active { background: var(--sand-soft); transform: none; }
+.lr-card .step-num,
+.pack-step-card .step-num {
   width: 46px;
   height: 44px;
   font-size: 17px;
@@ -923,7 +1144,8 @@
   appearance: none;
   -webkit-appearance: none;
 }
-.lr-card .step-num:focus { outline: none; background: var(--inasal-soft); }
+.lr-card .step-num:focus,
+.pack-step-card .step-num:focus { outline: none; background: var(--inasal-soft); }
 
 /* Compact Accordion Rows in Catering */
 .catering-tab-pane .cat-accordion { border-radius: var(--cat-radius); margin-bottom: 8px; box-shadow: 0 1px 2px rgba(33, 29, 26, 0.07); }
@@ -1258,10 +1480,13 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
   min-width: 0;
   flex: 1 1 auto;
   margin-right: 8px;
+}
+.preset-meta-wrap > * {
+  margin-right: 5px;
+  margin-bottom: 3px;
 }
 .preset-stock-pill {
   font-size: 10.5px;

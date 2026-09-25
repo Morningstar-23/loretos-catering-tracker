@@ -1,19 +1,12 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 4: Controller (js/views/catering/catering.js)
    - Zero emojis: Clean Lucide/Feather vector SVG iconography
-   - Zero-flash quantity adjustments: view animations isolated strictly to mode switches
-   - Synchronous in-memory thumbnail caching: stops images from reloading on qty changes
-   - Universal "Items per category" picker: [ 2 | 3 | 5 | 10 | All ] mirrored from Inventory
-   - Stock Discrepancy Reconciliation: Update Commissary Stock, Cap, or Move to Borrowed
-   - Persistent Horizontal Scroll for Category Chips (Never resets position on select)
-   - Dynamic "Reset filters" button for active category, search, or warnings
-   - Save manual van load-out as a preset and link it directly to active event
-   - Responsive header badge: switches between Active Kit and Manual Load
-   - Bidirectional Swipe-to-Delete: Swipe left to reveal, swipe right/tap to close
-   - Dedicated Stock Warning / Shortage Filter for staging van load-out
-   - Adjustable E-Commerce Grid: 2, 3, or 4 columns per row
-   - Independent Per-Category Accordion Pagination (in-place browsing)
-   - Optimized for iPhone 5s (iOS 12 / 320px)
+   - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s 320px viewport)
+   - Hybrid Deficit Splitter: Linked Bought vs. Borrowed reconciliation
+   - Stock Discrepancy Reconciliation Gatekeeper with 1-Tap Split launcher
+   - 3-Way Pack-Down Debrief: Intact Recovery %, Broken Scrap, Missing at Venue
+   - Universal "Items per category" pagination: [ 2 | 3 | 5 | 10 | All ]
+   - Bidirectional Swipe-to-Delete: Swipe left to reveal, right to close
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -38,11 +31,11 @@ App.Views.catering = (function () {
   var gridCols = 2;
   var openAccordions = {};
   var catPages = {};
-  var catPageSize = 5; // Mirrored from Inventory (2, 3, 5, 10, All)
+  var catPageSize = 5;
   var chipsScrollLeft = 0;
   var viewModeSwitchAnim = false;
 
-  /* In-memory photo cache to eliminate asynchronous image popping during re-renders */
+  /* In-memory photo cache */
   var photoCache = {};
 
   var page = 1;
@@ -51,7 +44,15 @@ App.Views.catering = (function () {
   var lastGliderState = null;
   var lastViewModeGliderState = null;
 
-  /* Scrolls up just enough to place the top of the items list in view */
+  /* Splitter in-modal active state */
+  var activeSplitState = {
+    itemId: '',
+    diff: 0,
+    bought: 0,
+    borrowed: 0,
+    proceed: false
+  };
+
   function scrollToListTop() {
     setTimeout(function () {
       var anchor = document.getElementById('catering-list-anchor');
@@ -63,7 +64,6 @@ App.Views.catering = (function () {
     }, 10);
   }
 
-  /* Instantaneous thumbnail hydration */
   function hydrateThumbsFast(root) {
     var doc = root || document;
     var thumbNodes = doc.querySelectorAll('[data-photo]');
@@ -94,7 +94,7 @@ App.Views.catering = (function () {
   function updateGlider(root) {
     var doc = root || document;
 
-    // 1. Tab Bar Glider (.seg-animated)
+    // 1. Tab Bar Glider
     var segContainer = doc.querySelector('.seg-animated');
     if (segContainer) {
       var segGlider = segContainer.querySelector('.seg-glider');
@@ -124,7 +124,7 @@ App.Views.catering = (function () {
       }
     }
 
-    // 2. View Mode Toggle Glider (.view-mode-animated)
+    // 2. View Mode Toggle Glider
     var viewContainer = doc.querySelector('.view-mode-animated');
     if (viewContainer) {
       var viewGlider = viewContainer.querySelector('.view-mode-glider');
@@ -258,7 +258,7 @@ App.Views.catering = (function () {
   function getFilteredBackLines(lines) {
     var q = (loadQ || '').toLowerCase().trim();
     return lines.filter(function (l) {
-      if (onlyShort && (l.isConsumable || l.back >= l.out)) return false;
+      if (onlyShort && (l.isConsumable || (l.back + (l.broken || 0) >= l.out))) return false;
       if (loadCat) {
         var it = S.item(l.itemId);
         if (!it || it.categoryId !== loadCat) return false;
@@ -266,14 +266,116 @@ App.Views.catering = (function () {
       if (!q) return true;
       return (l.name + ' ' + (l.brand || '') + ' ' + (l.tagLabel || '')).toLowerCase().indexOf(q) > -1;
     }).sort(function (a, b) {
-      var shortA = (!a.isConsumable && a.back < a.out) ? 1 : 0;
-      var shortB = (!b.isConsumable && b.back < b.out) ? 1 : 0;
+      var shortA = (!a.isConsumable && (a.back + (a.broken || 0) < a.out)) ? 1 : 0;
+      var shortB = (!b.isConsumable && (b.back + (b.broken || 0) < b.out)) ? 1 : 0;
       if (shortA !== shortB) return shortB - shortA;
       var itA = S.item(a.itemId), itB = S.item(b.itemId);
       var catA = itA ? itA.categoryId : '', catB = itB ? itB.categoryId : '';
       if (catA !== catB) return catA.localeCompare(catB);
       return (a.name || '').localeCompare(b.name || '');
     });
+  }
+
+  /* Feature 1: Hybrid Deficit Splitter Modal (Bought vs. Borrowed) */
+  function openSplitDeficitModal(ev, itemId, autoProceedOnResolve) {
+    var it = S.item(itemId);
+    if (!it) return;
+
+    var line = null;
+    (ev.lines || []).forEach(function (l) { if (l.itemId === itemId) line = l; });
+    if (!line) return;
+
+    var owned = it.qty || 0;
+    var staged = line.out || 0;
+    var deficit = Math.max(0, staged - owned);
+    if (deficit < 1) {
+      openStockDiscrepancyModal(ev, autoProceedOnResolve);
+      return;
+    }
+
+    activeSplitState = {
+      itemId: itemId,
+      diff: deficit,
+      bought: Math.ceil(deficit / 2),
+      borrowed: Math.floor(deficit / 2),
+      proceed: !!autoProceedOnResolve
+    };
+
+    renderSplitDeficitSheet(ev, it, line);
+  }
+
+  function renderSplitDeficitSheet(ev, it, line) {
+    var owned = it.qty || 0;
+    var staged = line.out || 0;
+    var diff = activeSplitState.diff;
+    var bought = activeSplitState.bought;
+    var borrowed = activeSplitState.borrowed;
+
+    var html =
+      '<div class="split-summary-card">' +
+        '<div class="row row-between mb4">' +
+          '<span class="item-name truncate" style="font-size:14px;font-weight:700">' + U.esc(line.name) + '</span>' +
+          '<span class="split-deficit-badge">' + diff + ' ' + U.esc(line.unit) + ' shortage</span>' +
+        '</div>' +
+        '<div class="row row-between" style="font-size:11.5px;color:var(--timber-soft)">' +
+          '<span>Needed in van: <b style="color:var(--timber-ink)">' + staged + '</b></span>' +
+          '<span>Commissary owns: <b style="color:var(--timber-ink)">' + owned + '</b></span>' +
+        '</div>' +
+      '</div>' +
+
+      '<label style="font-size:11px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;display:block;margin-bottom:4px">1-Tap Distribution</label>' +
+      '<div class="split-pill-presets">' +
+        '<button type="button" class="split-pill-btn" data-act="split-preset" data-val="all-bought">All ' + diff + ' Bought</button>' +
+        '<button type="button" class="split-pill-btn" data-act="split-preset" data-val="half">Split 50 / 50</button>' +
+        '<button type="button" class="split-pill-btn" data-act="split-preset" data-val="all-borrowed">All ' + diff + ' Borrowed</button>' +
+      '</div>' +
+
+      '<!-- Bought Stepper Card -->' +
+      '<div class="split-stepper-card bought mb8">' +
+        '<div class="row row-between">' +
+          '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
+            '<div style="font-size:12.5px;font-weight:700;color:var(--foliage)">' + U.icon('plus', 'mr4') + 'Bought New</div>' +
+            '<div class="muted" style="font-size:10.5px">Expands commissary stock permanently</div>' +
+          '</div>' +
+          '<div class="stepper stepper-green">' +
+            '<button type="button" class="step-btn" data-act="split-bought-minus">' + U.icon('minus') + '</button>' +
+            '<span class="step-num" id="split-bought-val" style="display:flex;align-items:center;justify-content:center;font-weight:700">' + bought + '</span>' +
+            '<button type="button" class="step-btn" data-act="split-bought-plus">' + U.icon('plus') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<!-- Borrowed Stepper Card -->' +
+      '<div class="split-stepper-card borrowed mb8">' +
+        '<div class="row row-between">' +
+          '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
+            '<div style="font-size:12.5px;font-weight:700;color:var(--inasal-dark)">' + U.icon('share', 'mr4') + 'Borrowed Extra</div>' +
+            '<div class="muted" style="font-size:10.5px">Logged to Foreign Pieces to return later</div>' +
+          '</div>' +
+          '<div class="stepper">' +
+            '<button type="button" class="step-btn" data-act="split-borrowed-minus">' + U.icon('minus') + '</button>' +
+            '<span class="step-num" id="split-borrowed-val" style="display:flex;align-items:center;justify-content:center;font-weight:700">' + borrowed + '</span>' +
+            '<button type="button" class="step-btn" data-act="split-borrowed-plus">' + U.icon('plus') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="field mb8">' +
+        '<label for="split-lender-note" style="font-size:11px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;margin-bottom:3px;display:block">Lender Note (Optional)</label>' +
+        '<input class="input" id="split-lender-note" placeholder="e.g. Borrowed from Tita Maria / North Adelaide" style="min-height:38px;font-size:12px">' +
+      '</div>' +
+
+      '<div class="split-impact-box">' +
+        '<div class="split-impact-item">&bull; Commissary stock will increase: <b>' + owned + ' &rarr; ' + (owned + bought) + ' ' + U.esc(line.unit) + '</b></div>' +
+        '<div class="split-impact-item">&bull; Foreign pieces logged to pack-down: <b>+' + borrowed + ' ' + U.esc(line.unit) + '</b></div>' +
+      '</div>' +
+
+      '<div class="sheet-sticky-footer">' +
+        '<button type="button" class="btn btn-primary mb8" data-act="split-apply-confirm">' + U.icon('check', 'mr4') + ' Apply Split & Reconcile</button>' +
+        '<button type="button" class="btn btn-ghost" data-act="split-back-to-disc">&larr; Back to Shortages</button>' +
+      '</div>';
+
+    U.openSheet('Split Shortage: ' + line.name, html, onAct, 'forward');
   }
 
   /* Dedicated Stock Discrepancy Reconciliation Sheet */
@@ -302,6 +404,12 @@ App.Views.catering = (function () {
       var diff = sh.shortBy;
       var proceedParam = autoProceedOnResolve ? 'true' : 'false';
 
+      var splitBtn = (diff >= 2) ? (
+        '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="open-split-modal" data-id="' + l.itemId + '" data-proceed="' + proceedParam + '" style="min-height:32px;font-size:11px;padding:2px 8px;color:var(--inasal-dark);border-color:var(--inasal-orange)">' +
+          U.icon('share', 'mr4') + 'Split (' + diff + ')...' +
+        '</button>'
+      ) : '';
+
       return '<div class="card mb8" style="background:#FFFAF8;border:1px solid rgba(214,57,32,0.25);border-left:4px solid var(--alert);padding:10px">' +
         '<div class="row row-between mb4">' +
           '<span class="item-name truncate" style="font-size:13.5px">' + U.esc(l.name) + '</span>' +
@@ -321,6 +429,7 @@ App.Views.catering = (function () {
           '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="disc-borrow-single" data-id="' + l.itemId + '" data-proceed="' + proceedParam + '" style="min-height:32px;font-size:11px;padding:2px 8px">' +
             '+' + diff + ' to Borrowed' +
           '</button>' +
+          splitBtn +
         '</div>' +
       '</div>';
     }).join('');
@@ -423,7 +532,6 @@ App.Views.catering = (function () {
     viewModeSwitchAnim = false;
     var content = '<div class="catering-view-wrap' + animWrapClass + '">' + rawContent + '</div>';
 
-    // Universal Bottom Bar: Matches Inventory compact view exactly
     var pagination = '';
     if (viewMode === 'compact' && filtered.length > 0) {
       var catSizes = [2, 3, 5, 10, 'All'];
@@ -492,7 +600,7 @@ App.Views.catering = (function () {
 
     var controls = listControls('Search gear', filtered.length, hasActiveFilters);
 
-    var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyShort ? 'All equipment returned!' : 'No items match filter.') + '</p></div>'
+    var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyShort ? 'All equipment returned or accounted for!' : 'No items match filter.') + '</p></div>'
       : (viewMode === 'compact' ? Views.renderPackCompactView(filtered, openAccordions, catPages, catPageSize)
       : (viewMode === 'grid' ? Views.renderPackGridView(paginatedLines, gridCols)
       : '<div class="list">' + Views.renderPackCardsView(paginatedLines) + '</div>'));
@@ -778,9 +886,78 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* 6. Stock Discrepancy Reconciliation Actions */
+    /* 6. Stock Discrepancy & Hybrid Splitter Actions */
     if (act === 'open-discrepancy-sheet') {
       openStockDiscrepancyModal(ev, false);
+      return;
+    }
+
+    if (act === 'open-split-modal') {
+      var autoProceedSplit = el.getAttribute('data-proceed') === 'true';
+      openSplitDeficitModal(ev, id, autoProceedSplit);
+      return;
+    }
+
+    if (act === 'split-back-to-disc') {
+      openStockDiscrepancyModal(ev, activeSplitState.proceed);
+      return;
+    }
+
+    if (act === 'split-preset') {
+      var pType = el.getAttribute('data-val');
+      var diffTot = activeSplitState.diff;
+      if (pType === 'all-bought') {
+        activeSplitState.bought = diffTot;
+        activeSplitState.borrowed = 0;
+      } else if (pType === 'all-borrowed') {
+        activeSplitState.bought = 0;
+        activeSplitState.borrowed = diffTot;
+      } else {
+        activeSplitState.bought = Math.ceil(diffTot / 2);
+        activeSplitState.borrowed = diffTot - activeSplitState.bought;
+      }
+      var itSp = S.item(activeSplitState.itemId);
+      var lSp = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === activeSplitState.itemId) lSp = l; });
+      if (itSp && lSp) renderSplitDeficitSheet(ev, itSp, lSp);
+      return;
+    }
+
+    if (act === 'split-bought-plus' || act === 'split-bought-minus') {
+      var deltaB = (act === 'split-bought-plus') ? 1 : -1;
+      var newBought = Math.max(0, Math.min(activeSplitState.diff, activeSplitState.bought + deltaB));
+      activeSplitState.bought = newBought;
+      activeSplitState.borrowed = activeSplitState.diff - newBought;
+      var itSpB = S.item(activeSplitState.itemId);
+      var lSpB = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === activeSplitState.itemId) lSpB = l; });
+      if (itSpB && lSpB) renderSplitDeficitSheet(ev, itSpB, lSpB);
+      return;
+    }
+
+    if (act === 'split-borrowed-plus' || act === 'split-borrowed-minus') {
+      var deltaBr = (act === 'split-borrowed-plus') ? 1 : -1;
+      var newBorrowed = Math.max(0, Math.min(activeSplitState.diff, activeSplitState.borrowed + deltaBr));
+      activeSplitState.borrowed = newBorrowed;
+      activeSplitState.bought = activeSplitState.diff - newBorrowed;
+      var itSpBr = S.item(activeSplitState.itemId);
+      var lSpBr = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === activeSplitState.itemId) lSpBr = l; });
+      if (itSpBr && lSpBr) renderSplitDeficitSheet(ev, itSpBr, lSpBr);
+      return;
+    }
+
+    if (act === 'split-apply-confirm') {
+      var lenderNote = ((document.getElementById('split-lender-note') || {}).value || '').trim();
+      var bCount = activeSplitState.bought;
+      var brCount = activeSplitState.borrowed;
+      var spItemId = activeSplitState.itemId;
+      var autoProc = activeSplitState.proceed;
+
+      S.splitDeficit(ev, spItemId, bCount, brCount, lenderNote);
+
+      U.toast('Shortage resolved: +' + bCount + ' bought, +' + brCount + ' borrowed.');
+      openStockDiscrepancyModal(ev, autoProc);
       return;
     }
 
@@ -1127,8 +1304,15 @@ App.Views.catering = (function () {
     if (act === 'back-input') { S.setBack(ev, id, parseInt(el.value, 10) || 0); App.rerenderQuiet(); return; }
     if (act === 'toggle-short') { onlyShort = !onlyShort; page = 1; catPages = {}; App.rerenderQuiet(); return; }
     if (act === 'all-back-gear') {
-      U.confirm('Mark gear back', 'Mark all non-consumable gear returned?', 'Confirm', function () {
-        ev.lines.forEach(function (l) { if (!l.isConsumable) l.back = l.out; });
+      U.confirm('Mark gear back', 'Mark all non-consumable gear returned in good shape?', 'Confirm', function () {
+        ev.lines.forEach(function (l) {
+          if (!l.isConsumable) {
+            l.back = l.out;
+            l.broken = 0;
+            l.brokenReason = '';
+            l.missingReason = '';
+          }
+        });
         S.save();
         App.rerenderQuiet();
         U.toast('All durable gear marked back.');
@@ -1170,26 +1354,37 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* 12. Close Event */
+    /* 12. Close Event (3-Way Debrief: Intact, Broken, Missing, Consumables) */
     if (act === 'close-event') {
       if (Nav) Nav.clear();
       var t = S.tally(ev);
-      var missing = ev.lines.filter(function (l) { return !l.isConsumable && l.out > l.back; });
+      var missing = ev.lines.filter(function (l) { return !l.isConsumable && (l.out - l.back - (l.broken || 0)) > 0; });
+      var broken = ev.lines.filter(function (l) { return !l.isConsumable && (l.broken || 0) > 0; });
       var used = ev.lines.filter(function (l) { return l.isConsumable && l.out > l.back; });
 
-      var html = '<div class="card mb12"><div class="row row-between">' +
-        '<div><div class="kpi-n" style="color:var(--foliage)">' + t.pct + '%</div><div class="kpi-l">gear returned</div></div>' +
-        '<div><div class="kpi-n" style="color:' + (t.missing ? 'var(--alert)' : 'var(--timber-ink)') + '">' + t.missing + '</div><div class="kpi-l">missing</div></div>' +
-        '<div><div class="kpi-n" style="color:var(--timber-soft)">' + t.consumed + '</div><div class="kpi-l">supplies used</div></div>' +
-      '</div></div>' +
-      (missing.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-missing" style="margin-right:8px"><span>Write off missing durable gear</span></label>' : '') +
-      (used.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-consumed" checked style="margin-right:8px"><span>Deduct consumed supplies</span></label>' : '') +
-      '<button type="button" class="btn btn-primary" data-act="confirm-close">Finish and file event</button>' +
-      '<button type="button" class="btn btn-ghost mt8" data-act="sheet-close">Not yet</button>';
+      var brokenNotice = broken.length ? (
+        '<div class="card mb8" style="background:#FFF9F8;border:1px solid rgba(214,57,32,0.2);padding:7px 10px;font-size:11.5px">' +
+          '<span style="color:var(--alert);font-weight:700">' + U.icon('alertTriangle', 'mr4') + t.broken + ' broken piece' + (t.broken === 1 ? '' : 's') + ' will be permanently scrapped from stock.</span>' +
+        '</div>'
+      ) : '';
+
+      var html =
+        '<div class="card mb12"><div class="row row-between" style="text-align:center">' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:var(--foliage);font-size:20px">' + t.pct + '%</div><div class="kpi-l">returned</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.broken ? 'var(--alert)' : 'var(--timber-ink)') + ';font-size:20px">' + t.broken + '</div><div class="kpi-l">broken</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.missing ? '#D49B42' : 'var(--timber-ink)') + ';font-size:20px">' + t.missing + '</div><div class="kpi-l">missing</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:var(--timber-soft);font-size:20px">' + t.consumed + '</div><div class="kpi-l">supplies</div></div>' +
+        '</div></div>' +
+        brokenNotice +
+        (missing.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-missing" style="margin-right:8px"><span>Write off missing durable gear from stock</span></label>' : '') +
+        (used.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-consumed" checked style="margin-right:8px"><span>Deduct consumed supplies from stock</span></label>' : '') +
+        '<button type="button" class="btn btn-primary" data-act="confirm-close">Finish and file event</button>' +
+        '<button type="button" class="btn btn-ghost mt8" data-act="sheet-close">Not yet</button>';
 
       U.openSheet('Finish ' + ev.name, html, onAct);
       return;
     }
+
     if (act === 'confirm-close') {
       var dChk = document.getElementById('deduct-missing');
       var cChk = document.getElementById('deduct-consumed');
@@ -1202,7 +1397,7 @@ App.Views.catering = (function () {
       onlyWarnings = false;
       chipsScrollLeft = 0;
       App.rerenderQuiet();
-      U.toast(res.pct + '% gear recovered. Event closed.');
+      U.toast(res.pct + '% gear recovered intact. Event closed.');
       return;
     }
   }
@@ -1221,6 +1416,7 @@ App.Views.catering = (function () {
     openPackReturnModal: function (id) { if (Nav) Nav.clear(); return Modals.openPackReturnModal(id, false); },
     openPresetOptionsSheet: function (ev) { if (Nav) Nav.clear(); return Kits.openPresetOptionsSheet(ev, false); },
     openKitPickerSheet: function (ev, s) { if (Nav) Nav.clear(); return Kits.openKitPickerSheet(ev, s, false); },
-    openStockDiscrepancyModal: function (ev, p) { return openStockDiscrepancyModal(ev, p); }
+    openStockDiscrepancyModal: function (ev, p) { return openStockDiscrepancyModal(ev, p); },
+    openSplitDeficitModal: function (ev, id, p) { return openSplitDeficitModal(ev, id, p); }
   };
 })();

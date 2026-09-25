@@ -1,19 +1,13 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Inventory (js/views/inventory.js)
-   - Universal "Items per category" picker (adjust all categories at once)
-   - Independent In-Place Per-Category Accordion Pagination (2, 3, 5, 10, All)
-   - Full accurate category counts on accordion badges
-   - Direct 2-way routing to Catering: "Return to Catering Load-out" action
-   - Lightbox modal integration: tap gear photo to enlarge with zoom badge
+   - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s 320px viewport)
+   - Zero emojis: Clean Feather/Lucide vector SVG iconography
+   - Universal "Items per category" pagination: [ 2 | 3 | 5 | 10 | All ]
+   - Feature 4: Item Incident History Timeline in Item Details (openStats)
    - Animated Magic-Pill Glider Switcher (Cards / Compact Accordion / Grid)
    - Dedicated Grid Density Toolbar (2 wide, 3 col, 4 dense)
    - Synchronous in-memory photo caching (zero flash on re-renders)
-   - Universal Pagination Bar for Cards & Grid views
    - Category scroll lock: exact scrollLeft position preserved
-   - In-place custom dropdowns (Stock & Sort) with spring animation
-   - 3D Spring sort direction toggle (Ascending / Descending)
-   - Refined Edit Modal: Aligned Brand/Unit fields & styled Photo drop-zone
-   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -26,8 +20,8 @@ App.Views.inventory = (function () {
   var viewModeSwitchAnim = false;
   var lastViewModeGliderState = null;
   var openAccordions = {};
-  var catPages = {}; // Independent page state per category
-  var catPageSize = 5; // Universal items per category (defaults to 3 for instant 2-page pagination)
+  var catPages = {};
+  var catPageSize = 5;
   var page = 1;
   var pageSize = 5;
   var totalPages = 1;
@@ -35,7 +29,7 @@ App.Views.inventory = (function () {
   var docListenerAttached = false;
   var openedFromCatering = false;
 
-  /* In-memory photo cache to eliminate async thumbnail popping */
+  /* In-memory photo cache */
   var photoCache = {};
 
   var pendingPhoto = null, editingId = null;
@@ -73,7 +67,6 @@ App.Views.inventory = (function () {
     '</button>';
   }
 
-  /* Instantaneous thumbnail hydration from cache or IndexedDB */
   function hydrateThumbsFast(root) {
     var doc = root || document;
     var thumbNodes = doc.querySelectorAll('[data-photo]');
@@ -101,7 +94,6 @@ App.Views.inventory = (function () {
     }
   }
 
-  /* Animated "Magic Pill" Background Glider Engine */
   function updateGlider(root) {
     var doc = root || document;
     var viewContainer = doc.querySelector('.view-mode-animated');
@@ -123,7 +115,7 @@ App.Views.inventory = (function () {
       viewGlider.style.transition = 'none';
       viewGlider.style.transform = 'translate3d(' + lastViewModeGliderState.x + 'px, 0, 0)';
       viewGlider.style.width = lastViewModeGliderState.w + 'px';
-      void viewGlider.offsetWidth; // Force reflow
+      void viewGlider.offsetWidth;
 
       requestAnimationFrame(function () {
         viewGlider.style.transition = 'transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1)';
@@ -201,9 +193,6 @@ App.Views.inventory = (function () {
     '</div>';
   }
 
-  /* ==========================================================================
-     View Mode Renderers (Cards / Compact / Grid)
-     ========================================================================== */
   function cardRow(i) {
     var c = S.category(i.categoryId);
     var asOf = i.updatedAt ? U.fmtDate(i.updatedAt) : '';
@@ -241,7 +230,6 @@ App.Views.inventory = (function () {
       '</button>';
   }
 
-  /* Compact View: True Category Totals + Universal Items-Per-Category Pagination */
   function renderCompactView(allItems) {
     var cats = S.categories();
     var groups = {};
@@ -295,7 +283,6 @@ App.Views.inventory = (function () {
         '</div>';
       }).join('');
 
-      // Always show in-accordion pagination if not set to 'All'
       var pagHtml = (!isAll) ? U.catAccordionPagination({
         catId: c.id,
         page: cPage,
@@ -362,7 +349,6 @@ App.Views.inventory = (function () {
     return html;
   }
 
-  /* Fixed Responsive E-Commerce Grid (Matching Catering Mode) */
   function renderGridView(items) {
     var cols = parseInt(gridCols, 10) || 2;
     var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-inv-grid-cols') : '';
@@ -405,7 +391,6 @@ App.Views.inventory = (function () {
     var sortBy = dirLocked ? 'mod-desc' : (sortField + '-' + sortDir);
     var list = S.searchItems(q, cat, sortBy, stockFilter);
 
-    // Global Pagination calculations (used in Cards & Grid modes)
     totalPages = Math.ceil(list.length / pageSize) || 1;
     if (page > totalPages) page = totalPages;
     if (page < 1) page = 1;
@@ -447,14 +432,10 @@ App.Views.inventory = (function () {
       rawContent = '<div class="list list-stagger">' + paginatedItems.map(cardRow).join('') + '</div>';
     }
 
-    /* Wrap content with view mode switch entrance animation */
     var animWrapClass = viewModeSwitchAnim ? ' view-content-enter' : '';
     viewModeSwitchAnim = false;
     var contentHtml = '<div class="inventory-view-wrap' + animWrapClass + '">' + rawContent + '</div>';
 
-    // Universal Bottom Bar:
-    // In Compact mode: Universal "Show per category: [ 2 | 3 | 5 | 10 | All ]"
-    // In Cards & Grid: Global Page Navigator with "Show per page: [ 5 | 10 | 15 | 25 ]"
     var paginationHtml = '';
     if (viewMode === 'compact' && list.length > 0) {
       var catSizes = [2, 3, 5, 10, 'All'];
@@ -557,7 +538,7 @@ App.Views.inventory = (function () {
     }
   }
 
-  /* Full Item Stats, Usage Trend & Audit Modal (with Lightbox Enlarge & Catering Return) */
+  /* Full Item Stats, Usage Trend, Audit Modal & Feature 4 Incident Timeline */
   function openStats(id, fromCatering) {
     openedFromCatering = !!fromCatering;
     var stats = S.itemStats(id);
@@ -599,11 +580,60 @@ App.Views.inventory = (function () {
       '</div>'
     ) : '';
 
+    /* FEATURE 4: ITEM INCIDENT HISTORY TIMELINE */
+    var incidentTimelineHtml = '';
+    var pastIncidents = isConsumable ? [] : S.itemIncidents(it.id);
+
+    if (pastIncidents.length > 0) {
+      var incRows = pastIncidents.map(function (inc) {
+        var isBroken = inc.type === 'broken';
+        var color = isBroken ? 'var(--alert)' : '#8A6805';
+        var bg = isBroken ? 'var(--alert-tint)' : '#FFF2DC';
+        var iconName = isBroken ? 'trash' : 'alertTriangle';
+
+        return '<div class="item" style="padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start;background:transparent">' +
+          '<span class="thumb" style="width:34px;height:34px;flex:0 0 34px;border-radius:8px;margin-right:8px;background:' + bg + ';color:' + color + '">' +
+            U.icon(iconName) +
+          '</span>' +
+          '<div class="grow" style="min-width:0">' +
+            '<div class="row row-between">' +
+              '<strong style="font-size:12.5px;color:' + color + '">-' + inc.qty + ' ' + U.esc(inc.unit) + ' ' + (isBroken ? 'Broken' : 'Missing') + '</strong>' +
+              '<span class="muted" style="font-size:10.5px">' + U.esc(U.fmtDate(inc.date)) + '</span>' +
+            '</div>' +
+            '<div class="item-sub truncate" style="color:var(--timber-ink);margin-top:1px;font-size:11.5px">' +
+              '@ ' + U.esc(inc.venue || 'No venue') + ' <span class="muted">(' + U.esc(inc.eventName) + ')</span>' +
+            '</div>' +
+            (inc.reason ? '<div class="muted mt2" style="font-size:10.5px">Cause: ' + U.esc(inc.reason) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      incidentTimelineHtml =
+        '<div class="card mb12" style="border-left:3.5px solid var(--alert);background:#FFFDF9">' +
+          '<div class="row row-between mb4">' +
+            '<strong style="font-size:12px;color:var(--alert);text-transform:uppercase;letter-spacing:0.04em">' +
+              U.icon('alertTriangle', 'mr4') + 'Incident History (' + pastIncidents.length + ')' +
+            '</strong>' +
+            '<span class="tag tag-red" style="font-size:9.5px">' + (stats.totalBrokenEver + stats.totalMissingEver) + ' unrecovered</span>' +
+          '</div>' +
+          '<div class="list" style="margin-top:2px">' + incRows + '</div>' +
+        '</div>';
+    } else if (!isConsumable && stats.eventsUsed > 0) {
+      incidentTimelineHtml =
+        '<div class="card mb12" style="background:var(--success-tint);border-color:rgba(36,90,62,0.3);padding:9px 11px">' +
+          '<div class="row" style="color:var(--success);font-size:11.5px;font-weight:700">' +
+            U.icon('check', 'mr4') + 'Clean record &mdash; zero broken or missing reports across ' + stats.eventsUsed + ' gigs.' +
+          '</div>' +
+        '</div>';
+    }
+
     var returnToCateringBtn = openedFromCatering ? (
       '<button type="button" class="btn btn-primary mb8" data-act="return-to-catering">' +
         U.icon('truck', 'mr4') + ' Return to Catering Load-out' +
       '</button>'
     ) : '';
+
+    var totalCasualties = isConsumable ? stats.totalConsumedEver : (stats.totalMissingEver + stats.totalBrokenEver);
 
     var html =
       returnToCateringBtn +
@@ -687,12 +717,13 @@ App.Views.inventory = (function () {
         '<div class="kpi"><div class="kpi-in">' +
           '<div class="kpi-n">' + stats.eventsUsed + '</div>' +
           '<div class="kpi-l">Gigs used on</div></div></div>' +
-        '<div class="kpi"><div class="kpi-in' + (!isConsumable && stats.totalMissingEver > 0 ? ' kpi-hot' : '') + '">' +
-          '<div class="kpi-n">' + (isConsumable ? stats.totalConsumedEver : stats.totalMissingEver) + '</div>' +
-          '<div class="kpi-l">' + (isConsumable ? 'Total consumed' : 'Lost ever') + '</div></div></div>' +
+        '<div class="kpi"><div class="kpi-in' + (!isConsumable && totalCasualties > 0 ? ' kpi-hot' : '') + '">' +
+          '<div class="kpi-n">' + totalCasualties + '</div>' +
+          '<div class="kpi-l">' + (isConsumable ? 'Total consumed' : 'Lost / Broken') + '</div></div></div>' +
       '</div>' +
 
       trendBarsHtml +
+      incidentTimelineHtml +
 
       '<div class="card mb12">' +
         '<div class="row row-between mb4">' +
@@ -739,7 +770,6 @@ App.Views.inventory = (function () {
     }
   }
 
-  /* Refined Add & Edit Gear Modal (Aligned Fields & Dedicated Photo Drop Zone) */
   function openEditor(id) {
     ensureOthersCategory();
     var it = id ? S.item(id) : null;
@@ -750,7 +780,6 @@ App.Views.inventory = (function () {
     selectedIsConsumable = it ? !!it.isConsumable : false;
     var cats = S.categories();
 
-    // 1. Reusable Item Nature Toggle Bar
     var typeSelectorHtml =
       '<div class="type-toggle-bar" id="type-selector">' +
         '<button type="button" class="type-toggle-btn' + (!selectedIsConsumable ? ' on' : '') + '" id="btn-type-durable" data-act="pick-item-type" data-type="durable">' +
@@ -766,7 +795,6 @@ App.Views.inventory = (function () {
           : 'Durable gear (chafing dishes, pans, plates). Must return 100%.') +
       '</div>';
 
-    // 2. Direct Category Picker Buttons
     var catGridHtml = '<div class="cat-grid" id="cat-selector">' +
       cats.map(function (c) {
         var isSel = (selectedCategoryId === c.id);
@@ -777,7 +805,6 @@ App.Views.inventory = (function () {
       }).join('') +
       '</div>';
 
-    // 3. Compact Current Stock Display / Initial Stock Input
     var qtySectionHtml = it ? (
       '<div class="edit-stock-card">' +
         '<div class="edit-stock-badge">' +
@@ -793,7 +820,6 @@ App.Views.inventory = (function () {
       '</div>'
     );
 
-    // 4. Modal HTML Hierarchy
     var html =
       '<div class="field">' +
         '<label for="f-name">Item Name *</label>' +
@@ -1062,7 +1088,7 @@ App.Views.inventory = (function () {
       if (!targetCat) chipsScrollLeft = 0;
       cat = targetCat;
       page = 1;
-      catPages = {}; // Reset category sub-pages
+      catPages = {};
       closeAllDropdowns();
       App.rerenderQuiet();
     }
@@ -1102,7 +1128,7 @@ App.Views.inventory = (function () {
       var newCatSize = parseInt(el.getAttribute('data-size'), 10) || 5;
       if (newCatSize !== catPageSize) {
         catPageSize = newCatSize;
-        catPages = {}; // Reset all categories to page 1
+        catPages = {};
         closeAllDropdowns();
         App.rerenderQuiet();
       }

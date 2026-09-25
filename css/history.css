@@ -1,8 +1,15 @@
 /* ==========================================================================
-   Loreto's Catering Tracker — History & Audit Logs View (css/history.css)
+   Loreto's Catering Tracker — History & Analytics View (css/history.css)
    - Scope: #/history route
-   - Completed Event Summaries, Gear Return Rates & Reconciliation Tallies
-   - Optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   - Top Segmented Magic Pill Glider: Event Logs vs Analytics
+   - Historical Incident Debriefs: Broken Scrap & Venue Leftover Callouts
+   - Pure SVG/CSS Micro-Charts (Zero external libraries):
+       1. KPI 4-Grid (Gigs, Recovery %, Losses, Consumables)
+       2. 6-Month Recovery Sparkline (SVG Polyline)
+       3. Loss & Damage Breakdown Donut (SVG Stroke Ring)
+       4. Top Consumables Burn Rate (CSS Flex Bars)
+       5. Venue Incident Watchlist
+   - Strictly optimized for iPhone 5s (iOS 12 / 320px viewport, NO flex gap)
    ========================================================================== */
 
 /* History View Shell */
@@ -11,7 +18,72 @@
   flex-direction: column;
 }
 
-/* Event History Log Card */
+/* ==========================================================================
+   Top Segmented Magic Pill Glider (Event Logs vs. Analytics)
+   ========================================================================== */
+#hist-seg-tabs.seg.seg-animated {
+  position: relative;
+  overflow: hidden;
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill, 9999px);
+  padding: 3px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  display: flex;
+}
+#hist-seg-tabs .seg-glider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 50%;
+  background: var(--sand-card, #FFFFFF);
+  border-radius: var(--r-pill, 9999px);
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.12), 0 0 0 1px rgba(33, 29, 26, 0.04);
+  z-index: 1;
+  pointer-events: none;
+  -webkit-transition: -webkit-transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1);
+  transition: transform 0.26s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.22s cubic-bezier(0.34, 1.45, 0.64, 1);
+  will-change: transform, width;
+}
+#hist-seg-tabs button {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0%;
+  min-height: 40px;
+  border-radius: var(--r-pill, 9999px);
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--timber-soft);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.18s ease;
+}
+#hist-seg-tabs button.on {
+  color: var(--inasal-orange) !important;
+  font-weight: 700;
+}
+#hist-seg-tabs button .icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+
+/* Tab Viewport Entrance */
+.hist-tab-viewport {
+  min-height: 280px;
+}
+
+/* ==========================================================================
+   Historical Event Log Cards & Incident Debriefs
+   ========================================================================== */
 .history-card {
   position: relative;
   background: var(--sand-card);
@@ -27,46 +99,75 @@
 .history-card:active {
   transform: scale(0.98);
 }
-
-/* Status Indicator Accents */
 .history-card.perfect-return {
   border-left: 3.5px solid var(--foliage);
 }
-.history-card.has-missing {
+.history-card.has-incident {
   border-left: 3.5px solid var(--alert);
 }
-.history-card.has-writeoff {
-  border-left: 3.5px solid var(--gold);
+.history-card.has-missing-only {
+  border-left: 3.5px solid #D49B42;
 }
 
-/* History Details Header */
-.history-detail-header {
-  margin-bottom: 12px;
+/* Incident Tag Badges */
+.incident-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 4px -2px 0 -2px;
 }
-.history-detail-title {
-  font-family: "Iowan Old Style", Georgia, serif;
-  font-size: 18px;
+.incident-tag {
+  flex: 0 0 auto;
+  margin: 2px;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  font-size: 9.5px;
   font-weight: 700;
-  color: var(--inasal-dark);
-}
-
-/* Tally Recovery Pill Badge */
-.history-tally-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
-  border-radius: var(--r-pill);
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
-.history-tally-badge.ok {
+.incident-tag .icon {
+  width: 11px;
+  height: 11px;
+  margin-right: 3px;
+}
+.incident-tag.tag-broken {
+  background: var(--alert-tint);
+  border: 1px solid rgba(214, 57, 32, 0.3);
+  color: var(--alert);
+}
+.incident-tag.tag-missing {
+  background: #FFF2DC;
+  border: 1px solid rgba(212, 155, 66, 0.35);
+  color: #8A6805;
+}
+.incident-tag.tag-ok {
   background: var(--foliage-tint);
+  border: 1px solid rgba(36, 90, 62, 0.25);
   color: var(--foliage-dark);
 }
-.history-tally-badge.warn {
-  background: var(--alert-tint);
-  color: var(--alert);
+
+/* Debrief Highlight Box inside Past Event Inspector */
+.history-debrief-box {
+  background: #FFFDF9;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.debrief-incident-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.debrief-incident-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.debrief-incident-row:first-child {
+  padding-top: 0;
 }
 
 /* Manifest Archive Item Row */
@@ -80,4 +181,292 @@
 }
 .history-manifest-row:last-child {
   border-bottom: none;
+}
+
+/* ==========================================================================
+   FEATURE 3: PURE SVG/CSS ANALYTICS DASHBOARD
+   ========================================================================== */
+
+/* 1. Analytics 4-KPI Grid */
+.analytics-kpi-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -3px 12px -3px;
+}
+.analytics-kpi-card {
+  width: calc(50% - 6px);
+  margin: 3px;
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 9px 8px;
+  box-sizing: border-box;
+  text-align: center;
+  box-shadow: var(--shadow-xs);
+}
+.analytics-kpi-num {
+  font-family: "Iowan Old Style", Georgia, serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-kpi-lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--timber-soft);
+  letter-spacing: 0.03em;
+  margin-top: 3px;
+}
+
+/* Analytics Section Header */
+.analytics-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 2px 6px 2px;
+}
+.analytics-sec-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+}
+.analytics-sec-title .icon {
+  margin-right: 5px;
+  color: var(--inasal-orange);
+}
+
+/* 2. 6-Month Recovery Rate Sparkline */
+.sparkline-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 10px 8px 10px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-xs);
+}
+.sparkline-svg-wrap {
+  width: 100%;
+  height: 64px;
+  position: relative;
+}
+.sparkline-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.sparkline-path {
+  fill: none;
+  stroke: var(--foliage);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sparkline-grid-line {
+  stroke: var(--line);
+  stroke-dasharray: 2 2;
+  stroke-width: 1;
+}
+.sparkline-labels-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--timber-soft);
+  text-transform: uppercase;
+}
+
+/* 3. Loss & Damage Breakdown Donut Chart */
+.donut-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 10px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-xs);
+}
+.donut-body-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+.donut-svg-wrap {
+  width: 90px;
+  height: 90px;
+  flex: 0 0 90px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.donut-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.donut-bg-ring {
+  fill: none;
+  stroke: var(--sand-soft);
+  stroke-width: 11;
+}
+.donut-broken-ring {
+  fill: none;
+  stroke: var(--alert);
+  stroke-width: 11;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+.donut-missing-ring {
+  fill: none;
+  stroke: #D49B42;
+  stroke-width: 11;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+.donut-center-info {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.donut-center-num {
+  font-family: "Iowan Old Style", Georgia, serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--timber-ink);
+}
+.donut-center-sub {
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--timber-soft);
+  margin-top: 1px;
+}
+.donut-legend {
+  flex: 1 1 0%;
+  min-width: 0;
+  margin-left: 12px;
+}
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+}
+.donut-legend-item:last-child {
+  margin-bottom: 0;
+}
+.donut-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.donut-dot.dot-broken {
+  background: var(--alert);
+}
+.donut-dot.dot-missing {
+  background: #D49B42;
+}
+
+/* 4. Top Consumables Burn Rate Bar Chart */
+.burn-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-xs);
+}
+.burn-item-row {
+  margin-bottom: 8px;
+}
+.burn-item-row:last-child {
+  margin-bottom: 0;
+}
+.burn-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  margin-bottom: 3px;
+}
+.burn-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--sand-soft);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.burn-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #D49B42 0%, var(--inasal-orange) 100%);
+  border-radius: var(--r-pill);
+  transition: width 0.3s ease;
+}
+
+/* 5. Venue Incident Watchlist Cards */
+.venue-watch-card {
+  background: var(--sand-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  margin-bottom: 7px;
+  box-shadow: var(--shadow-xs);
+}
+.venue-watch-card.high-risk {
+  border-left: 3.5px solid var(--alert);
+}
+.venue-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.venue-name-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.22;
+  word-break: break-word;
+}
+.venue-risk-badge {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--alert-tint);
+  color: var(--alert);
+  border: 1px solid rgba(214, 57, 32, 0.25);
+}
+.venue-meta-row {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--timber-soft);
+  flex-wrap: wrap;
+}
+.venue-meta-row > * {
+  margin-right: 8px;
+  margin-bottom: 2px;
 }

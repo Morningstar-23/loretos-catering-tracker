@@ -1,14 +1,12 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Data Store (js/store.js)
-   - Replaced "in kitchen" with "in inventory" throughout
-   - Added permanent "Others" category (icon: 'grid')
-   - Low stock threshold configurable per item
-   - Stock health filtering: All, Low stock, Empty stock, In stock
-   - Safe in-transit load-out adjustments & returns clamping
-   - Fixed setOut to insert fresh items when not already in ev.lines
-   - Preset updating & saving from active loaded events
-   - Plain text manifest generator for SMS / WhatsApp / Notepad
-   - Visual trend & chart data aggregators
+   - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s compatible)
+   - Zero emojis: Clean Feather/Lucide vector SVG iconography
+   - Hybrid Deficit Splitter: boughtQty increases stock, borrowedQty logs to notOurs
+   - Pack-Down Incident Tracking: broken, brokenReason, missingReason
+   - Structured Event Incidents Debrief on event closure
+   - Item Incident History extractor for Shelf/Inventory timeline
+   - Analytics Aggregator: 6-mo recovery sparkline, loss donut, venue watchlist
    ========================================================================== */
 window.App = window.App || {};
 App.Store = (function () {
@@ -117,9 +115,9 @@ App.Store = (function () {
     ];
 
     var staff = [
-      { id: uid('st-'), name: 'Loreto Fernandez', role: 'Head Chef / Owner', phone: '0917-555-0192', notes: 'Lead operations', photoId: '', createdAt: now(), updatedAt: now() },
-      { id: uid('st-'), name: 'Danilo Cruz', role: 'Kitchen & Van Lead', phone: '0918-555-0144', notes: 'Counts van load-out', photoId: '', createdAt: now(), updatedAt: now() },
-      { id: uid('st-'), name: 'Elena Ramos', role: 'Head Server', phone: '0920-555-0188', notes: 'Buffet line coordinator', photoId: '', createdAt: now(), updatedAt: now() }
+      { id: uid('st-'), name: 'Loreto Fernandez', role: 'Head Chef / Owner', phone: '0412 000 001', notes: 'Lead operations', photoId: '', createdAt: now(), updatedAt: now() },
+      { id: uid('st-'), name: 'Danilo Cruz', role: 'Kitchen & Van Lead', phone: '0412 000 002', notes: 'Counts van load-out', photoId: '', createdAt: now(), updatedAt: now() },
+      { id: uid('st-'), name: 'Elena Ramos', role: 'Head Server', phone: '0412 000 003', notes: 'Buffet line coordinator', photoId: '', createdAt: now(), updatedAt: now() }
     ];
 
     return {
@@ -187,6 +185,7 @@ App.Store = (function () {
     s.events.forEach(function (ev) {
       if (!ev.staffIds) ev.staffIds = [];
       if (!ev.lines) ev.lines = [];
+      if (!ev.incidents) ev.incidents = [];
       if (ev.presetId === undefined) ev.presetId = '';
       ev.lines.forEach(function (l) {
         if (l.isConsumable === undefined) {
@@ -196,6 +195,9 @@ App.Store = (function () {
           l.isConsumable = !!l.isConsumable;
         }
         if (l.back === undefined) l.back = 0;
+        if (l.broken === undefined) l.broken = 0;
+        if (l.brokenReason === undefined) l.brokenReason = '';
+        if (l.missingReason === undefined) l.missingReason = '';
       });
     });
 
@@ -275,26 +277,26 @@ App.Store = (function () {
     if (ev) {
       ev.lines.forEach(function (l) {
         if (l.itemId === id) {
-          currentlyOut = Math.max(0, l.out - (ev.status === 'out' ? l.back : 0));
+          currentlyOut = Math.max(0, l.out - (ev.status === 'out' ? (l.back + (l.broken || 0)) : 0));
         }
       });
     }
 
     var hist = history();
-    var eventsUsed = 0, totalLoadedEver = 0, totalMissingEver = 0, totalConsumedEver = 0, lastUsedDate = '';
+    var eventsUsed = 0, totalLoadedEver = 0, totalMissingEver = 0, totalBrokenEver = 0, totalConsumedEver = 0, lastUsedDate = '';
     hist.forEach(function (e) {
       var found = false;
       e.lines.forEach(function (l) {
         if (l.itemId === id) {
           found = true;
           totalLoadedEver += (l.out || 0);
-          var diff = Math.max(0, (l.out || 0) - (l.back || 0));
-          if (diff > 0) {
-            if (it.isConsumable || l.isConsumable) {
-              totalConsumedEver += diff;
-            } else {
-              totalMissingEver += diff;
-            }
+          if (it.isConsumable || l.isConsumable) {
+            totalConsumedEver += Math.max(0, (l.out || 0) - (l.back || 0));
+          } else {
+            var brk = l.broken || 0;
+            var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
+            totalBrokenEver += brk;
+            totalMissingEver += mis;
           }
         }
       });
@@ -326,6 +328,7 @@ App.Store = (function () {
       eventsUsed: eventsUsed,
       totalLoadedEver: totalLoadedEver,
       totalMissingEver: totalMissingEver,
+      totalBrokenEver: totalBrokenEver,
       totalConsumedEver: totalConsumedEver,
       lastUsedDate: lastUsedDate,
       presetsCount: presetsCount,
@@ -354,6 +357,47 @@ App.Store = (function () {
     });
   }
 
+  /* Extract Past Incident History for a specific item (for Feature 4) */
+  function itemIncidents(itemId) {
+    var incidents = [];
+    var hist = history();
+    hist.forEach(function (e) {
+      (e.lines || []).forEach(function (l) {
+        if (l.itemId === itemId && !l.isConsumable) {
+          var brk = l.broken || 0;
+          var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
+          if (brk > 0) {
+            incidents.push({
+              eventId: e.id,
+              date: e.date || '',
+              eventName: e.name,
+              venue: e.venue || 'No venue',
+              type: 'broken',
+              qty: brk,
+              unit: l.unit || 'pc',
+              reason: l.brokenReason || 'Damaged'
+            });
+          }
+          if (mis > 0) {
+            incidents.push({
+              eventId: e.id,
+              date: e.date || '',
+              eventName: e.name,
+              venue: e.venue || 'No venue',
+              type: 'missing',
+              qty: mis,
+              unit: l.unit || 'pc',
+              reason: l.missingReason || 'Left at venue'
+            });
+          }
+        }
+      });
+    });
+    return incidents.sort(function (a, b) {
+      return (b.date || '').localeCompare(a.date || '');
+    });
+  }
+
   function overallRecoveryTrend() {
     var hist = history().slice(0, 6).reverse();
     return hist.map(function (e) {
@@ -363,9 +407,107 @@ App.Store = (function () {
         name: e.name || 'Gig',
         recoveryPct: t.pct,
         missing: t.missing,
+        broken: t.broken,
         consumed: t.consumed
       };
     });
+  }
+
+  /* Analytics Aggregator (for Feature 3: History & Analytics Dual View) */
+  function analyticsSummary() {
+    var hist = history();
+    var totalGigs = hist.length;
+    var totalDurableOut = 0, totalDurableBack = 0, totalBroken = 0, totalMissing = 0, totalConsumed = 0;
+    var venueStats = {};
+    var consumableMap = {};
+
+    hist.forEach(function (e) {
+      var vName = (e.venue || 'Unspecified venue').trim();
+      if (!venueStats[vName]) {
+        venueStats[vName] = { venue: vName, gigs: 0, broken: 0, missing: 0, incidents: 0 };
+      }
+      venueStats[vName].gigs++;
+
+      (e.lines || []).forEach(function (l) {
+        var out = l.out || 0;
+        var back = l.back || 0;
+        if (l.isConsumable) {
+          var used = Math.max(0, out - back);
+          totalConsumed += used;
+          if (!consumableMap[l.name]) {
+            consumableMap[l.name] = { name: l.name, count: 0, unit: l.unit || 'pc' };
+          }
+          consumableMap[l.name].count += used;
+        } else {
+          totalDurableOut += out;
+          totalDurableBack += back;
+          var brk = l.broken || 0;
+          var mis = Math.max(0, out - back - brk);
+          totalBroken += brk;
+          totalMissing += mis;
+
+          if (brk > 0 || mis > 0) {
+            venueStats[vName].broken += brk;
+            venueStats[vName].missing += mis;
+            venueStats[vName].incidents += (brk + mis);
+          }
+        }
+      });
+    });
+
+    var overallPct = totalDurableOut > 0 ? Math.round((totalDurableBack / totalDurableOut) * 100) : 100;
+    var totalIncidents = totalBroken + totalMissing;
+    var brokenPct = totalIncidents > 0 ? Math.round((totalBroken / totalIncidents) * 100) : 50;
+    var missingPct = totalIncidents > 0 ? (100 - brokenPct) : 50;
+
+    // Top consumables list
+    var topConsumables = [];
+    for (var k in consumableMap) {
+      if (consumableMap.hasOwnProperty(k)) {
+        topConsumables.push(consumableMap[k]);
+      }
+    }
+    topConsumables.sort(function (a, b) { return b.count - a.count; });
+    topConsumables = topConsumables.slice(0, 5);
+
+    // Venue watchlist
+    var venueList = [];
+    for (var vn in venueStats) {
+      if (venueStats.hasOwnProperty(vn)) {
+        venueList.push(venueStats[vn]);
+      }
+    }
+    venueList.sort(function (a, b) { return b.incidents - a.incidents; });
+    var venueWatchlist = venueList.filter(function (v) { return v.incidents > 0; }).slice(0, 5);
+
+    // 6-Month recovery sparkline points
+    var trendData = overallRecoveryTrend();
+    var sparkPoints = [];
+    if (trendData.length > 0) {
+      var w = 260, h = 60, pad = 10;
+      var step = trendData.length > 1 ? (w - 2 * pad) / (trendData.length - 1) : 0;
+      for (var idx = 0; idx < trendData.length; idx++) {
+        var x = Math.round(pad + idx * step);
+        var pct = Math.max(0, Math.min(100, trendData[idx].recoveryPct));
+        var y = Math.round(h - pad - ((pct / 100) * (h - 2 * pad)));
+        sparkPoints.push(x + ',' + y);
+      }
+    }
+
+    return {
+      totalGigs: totalGigs,
+      overallReturnPct: overallPct,
+      totalBroken: totalBroken,
+      totalMissing: totalMissing,
+      totalIncidents: totalIncidents,
+      brokenPct: brokenPct,
+      missingPct: missingPct,
+      totalConsumed: totalConsumed,
+      topConsumables: topConsumables,
+      venueWatchlist: venueWatchlist,
+      trendData: trendData,
+      sparkPolyline: sparkPoints.join(' ')
+    };
   }
 
   function saveItem(data) {
@@ -477,7 +619,7 @@ App.Store = (function () {
 
     if (ev && !ignoreActiveEventLines) {
       ev.lines.forEach(function (l) {
-        outMap[l.itemId] = (outMap[l.itemId] || 0) + (l.out - (ev.status === 'out' ? l.back : 0));
+        outMap[l.itemId] = (outMap[l.itemId] || 0) + (l.out - (ev.status === 'out' ? (l.back + (l.broken || 0)) : 0));
       });
     }
 
@@ -634,7 +776,10 @@ App.Store = (function () {
       tagColor: it.tagColor || 'orange',
       tagStyle: 'tape',
       out: qty,
-      back: 0
+      back: 0,
+      broken: 0,
+      brokenReason: '',
+      missingReason: ''
     };
   }
 
@@ -648,6 +793,7 @@ App.Store = (function () {
       lines: [],
       notOurs: [],
       staffIds: d.staffIds || [],
+      incidents: [],
       note: d.note || '',
       presetId: d.presetId || '',
       createdAt: now(),
@@ -691,7 +837,6 @@ App.Store = (function () {
     save();
   }
 
-  /* Adjust 'out' count safely — fixes bug where fresh items were not pushed into ev.lines */
   function setOut(ev, itemId, n) {
     if (!ev) return;
     var found = false;
@@ -700,11 +845,13 @@ App.Store = (function () {
       if (l.itemId === itemId) {
         found = true;
         l.out = targetQty;
-        if (l.back > l.out) l.back = l.out;
+        if (l.back + (l.broken || 0) > l.out) {
+          l.back = Math.min(l.back, l.out);
+          l.broken = Math.max(0, Math.min(l.broken || 0, l.out - l.back));
+        }
       }
     });
 
-    // If item was not yet in van and quantity > 0, insert it!
     if (!found && targetQty > 0) {
       var it = item(itemId);
       if (it) {
@@ -719,12 +866,56 @@ App.Store = (function () {
   function setBack(ev, itemId, n) {
     if (!ev) return;
     ev.lines.forEach(function (l) {
-      if (l.itemId === itemId) l.back = Math.max(0, Math.min(l.out, n));
+      if (l.itemId === itemId) {
+        l.back = Math.max(0, Math.min(l.out, n));
+        if (l.back + (l.broken || 0) > l.out) {
+          l.broken = Math.max(0, l.out - l.back);
+        }
+      }
     });
     save();
   }
 
-  /* Preset Merging & Full Replacement on Active/Loaded Events */
+  /* Record detailed packdown return (Feature 2) */
+  function setPackReturn(ev, itemId, backQty, brokenQty, brokenReason, missingReason) {
+    if (!ev) return;
+    ev.lines.forEach(function (l) {
+      if (l.itemId === itemId) {
+        var cleanBack = Math.max(0, Math.min(l.out, backQty));
+        var maxBroken = Math.max(0, l.out - cleanBack);
+        var cleanBroken = Math.max(0, Math.min(maxBroken, brokenQty || 0));
+
+        l.back = cleanBack;
+        l.broken = cleanBroken;
+        l.brokenReason = cleanBroken > 0 ? (brokenReason || 'Damaged') : '';
+        var cleanMissing = Math.max(0, l.out - cleanBack - cleanBroken);
+        l.missingReason = cleanMissing > 0 ? (missingReason || 'Left at venue') : '';
+      }
+    });
+    save();
+  }
+
+  /* Hybrid Deficit Splitter: bought increases stock, borrowed goes to notOurs (Feature 1) */
+  function splitDeficit(ev, itemId, boughtQty, borrowedQty, lenderNote) {
+    if (!ev) return;
+    var it = item(itemId);
+    if (!it) return;
+
+    boughtQty = Math.max(0, parseInt(boughtQty, 10) || 0);
+    borrowedQty = Math.max(0, parseInt(borrowedQty, 10) || 0);
+
+    if (boughtQty > 0) {
+      it.qty = (it.qty || 0) + boughtQty;
+      it.updatedAt = now();
+    }
+
+    if (borrowedQty > 0) {
+      addNotOurs(ev, it.name, borrowedQty, lenderNote || ('Borrowed for ' + ev.name));
+    }
+
+    save();
+  }
+
   function applyPresetToEvent(ev, presetId, mode, clamp) {
     if (!ev) return;
     var pKit = preset(presetId);
@@ -742,13 +933,15 @@ App.Store = (function () {
         var targetQty = clamp ? Math.min(pl.qty, it.qty) : pl.qty;
         if (targetQty <= 0) return;
 
-        var preservedBack = 0;
+        var preservedBack = 0, preservedBroken = 0;
         if (oldLinesMap[pl.itemId]) {
           preservedBack = Math.min(oldLinesMap[pl.itemId].back, targetQty);
+          preservedBroken = Math.min(oldLinesMap[pl.itemId].broken || 0, targetQty - preservedBack);
         }
 
         var l = lineFrom(it, targetQty);
         l.back = preservedBack;
+        l.broken = preservedBroken;
         newLines.push(l);
       });
       ev.lines = newLines;
@@ -792,6 +985,7 @@ App.Store = (function () {
   }
 
   function addNotOurs(ev, label, qty, note) {
+    if (!ev.notOurs) ev.notOurs = [];
     ev.notOurs.push({
       id: uid('n-'),
       label: label || 'Unmarked item',
@@ -802,18 +996,20 @@ App.Store = (function () {
   }
 
   function removeNotOurs(ev, id) {
+    if (!ev.notOurs) return;
     ev.notOurs = ev.notOurs.filter(function (n) { return n.id !== id; });
     save();
   }
 
   function tally(ev) {
     var totalOut = 0, totalBack = 0;
-    var durableOut = 0, durableBack = 0;
+    var durableOut = 0, durableBack = 0, durableBroken = 0;
     var consumableOut = 0, consumableBack = 0;
 
     (ev.lines || []).forEach(function (l) {
       var out = l.out || 0;
       var back = l.back || 0;
+      var brk = l.broken || 0;
       totalOut += out;
       totalBack += back;
 
@@ -823,13 +1019,14 @@ App.Store = (function () {
       } else {
         durableOut += out;
         durableBack += back;
+        durableBroken += brk;
       }
     });
 
     var foreign = 0;
     (ev.notOurs || []).forEach(function (n) { foreign += (n.qty || 0); });
 
-    var missingDurable = Math.max(0, durableOut - durableBack);
+    var missingDurable = Math.max(0, durableOut - durableBack - durableBroken);
     var consumedItems = Math.max(0, consumableOut - consumableBack);
 
     var pct = 100;
@@ -840,6 +1037,7 @@ App.Store = (function () {
     return {
       out: totalOut,
       back: totalBack,
+      broken: durableBroken,
       missing: missingDurable,
       consumed: consumedItems,
       durableOut: durableOut,
@@ -853,19 +1051,50 @@ App.Store = (function () {
 
   function closeEvent(ev, deductMissing, deductConsumed) {
     if (deductConsumed === undefined) deductConsumed = true;
+    var incidents = [];
 
     ev.lines.forEach(function (l) {
-      var diff = Math.max(0, (l.out || 0) - (l.back || 0));
-      if (diff > 0) {
-        var it = item(l.itemId);
-        if (it) {
-          if (l.isConsumable && deductConsumed) {
-            it.qty = Math.max(0, (it.qty || 0) - diff);
-            it.updatedAt = now();
-          } else if (!l.isConsumable && deductMissing) {
-            it.qty = Math.max(0, (it.qty || 0) - diff);
+      var it = item(l.itemId);
+      if (l.isConsumable) {
+        var used = Math.max(0, (l.out || 0) - (l.back || 0));
+        if (used > 0 && deductConsumed && it) {
+          it.qty = Math.max(0, (it.qty || 0) - used);
+          it.updatedAt = now();
+        }
+      } else {
+        var brk = l.broken || 0;
+        var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
+
+        // Broken items are always permanently deducted from commissary
+        if (brk > 0) {
+          if (it) {
+            it.qty = Math.max(0, (it.qty || 0) - brk);
             it.updatedAt = now();
           }
+          incidents.push({
+            itemId: l.itemId,
+            name: l.name,
+            type: 'broken',
+            qty: brk,
+            unit: l.unit || 'pc',
+            reason: l.brokenReason || 'Damaged'
+          });
+        }
+
+        // Missing items are deducted if staff elected write-off
+        if (mis > 0) {
+          if (deductMissing && it) {
+            it.qty = Math.max(0, (it.qty || 0) - mis);
+            it.updatedAt = now();
+          }
+          incidents.push({
+            itemId: l.itemId,
+            name: l.name,
+            type: 'missing',
+            qty: mis,
+            unit: l.unit || 'pc',
+            reason: l.missingReason || 'Left at venue'
+          });
         }
       }
     });
@@ -874,6 +1103,7 @@ App.Store = (function () {
     ev.closedAt = now();
     ev.deducted = !!deductMissing;
     ev.deductedConsumed = !!deductConsumed;
+    ev.incidents = incidents;
     save();
     return tally(ev);
   }
@@ -914,7 +1144,7 @@ App.Store = (function () {
     text += "Event: " + ev.name + "\n";
     text += "Venue: " + (ev.venue || 'No venue specified') + "\n";
     text += "Date: " + (ev.date || 'Today') + "\n";
-    text += "Status: " + (ev.status === 'closed' ? 'Completed (' + t.pct + '% Gear Returned)' : (ev.status === 'out' ? 'Out on Location' : 'Staging / Van Loading')) + "\n";
+    text += "Status: " + (ev.status === 'closed' ? 'Completed (' + t.pct + '% Gear Returned Intact)' : (ev.status === 'out' ? 'Out on Location' : 'Staging / Van Loading')) + "\n";
     if (ev.note) text += "Instructions: " + ev.note + "\n";
     text += "\n";
 
@@ -936,9 +1166,18 @@ App.Store = (function () {
     text += "-----------------------------------------\n";
     if (durableLines.length) {
       durableLines.forEach(function (l) {
-        var status = (ev.status === 'staging')
-          ? "Staged: " + l.out + " " + l.unit
-          : (l.out === l.back ? "[✓] All " + l.out + " " + l.unit + " returned" : "[!] " + (l.out - l.back) + " of " + l.out + " " + l.unit + " MISSING");
+        var status = '';
+        if (ev.status === 'staging') {
+          status = "Staged: " + l.out + " " + l.unit;
+        } else {
+          var brk = l.broken || 0;
+          var mis = Math.max(0, l.out - l.back - brk);
+          if (l.out === l.back) {
+            status = "[✓] All " + l.out + " " + l.unit + " returned";
+          } else {
+            status = "[!] Back: " + l.back + "/" + l.out + (brk > 0 ? " (" + brk + " BROKEN - " + (l.brokenReason || 'Damaged') + ")" : "") + (mis > 0 ? " (" + mis + " MISSING - " + (l.missingReason || 'Venue') + ")" : "");
+          }
+        }
         text += "• " + l.name + (l.brand ? " [" + l.brand + "]" : "") + " — " + status + "\n";
       });
     } else {
@@ -1027,7 +1266,8 @@ App.Store = (function () {
     load: load, save: save, flush: flush, uid: uid, clone: clone, now: now,
     state: function () { return s; },
     items: items, item: item, itemStats: itemStats, searchItems: searchItems,
-    itemUsageTrend: itemUsageTrend, overallRecoveryTrend: overallRecoveryTrend,
+    itemUsageTrend: itemUsageTrend, itemIncidents: itemIncidents,
+    overallRecoveryTrend: overallRecoveryTrend, analyticsSummary: analyticsSummary,
     generateEventManifestText: generateEventManifestText,
     saveItem: saveItem, adjustStock: adjustStock, setStock: setStock, removeItem: removeItem,
     categories: categories, category: category, categoryName: categoryName,
@@ -1037,6 +1277,7 @@ App.Store = (function () {
     staff: staff, staffMember: staffMember, saveStaff: saveStaff, removeStaff: removeStaff,
     activeEvent: activeEvent, event: event, createEvent: createEvent,
     addLine: addLine, removeLine: removeLine, setOut: setOut, setBack: setBack,
+    setPackReturn: setPackReturn, splitDeficit: splitDeficit,
     applyPresetToEvent: applyPresetToEvent, returnToStaging: returnToStaging,
     assignStaff: assignStaff, unassignStaff: unassignStaff,
     markLoaded: markLoaded, addNotOurs: addNotOurs, removeNotOurs: removeNotOurs,

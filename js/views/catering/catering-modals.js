@@ -1,15 +1,14 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 1: Modals (js/views/catering/catering-modals.js)
    - Zero emojis: Clean Lucide/Feather vector SVG iconography
-   - In-modal Stock Discrepancy Resolution: 1-tap Commissary Stock Sync or Cap
+   - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s 320px viewport)
+   - Pack-Down Return Triage: Returned Intact vs. Broken Scrap vs. Missing at Venue
+   - 1-Tap Reason Chips (No keyboard typing):
+       Broken:  [ Shattered / Dropped ], [ Melted / Burnt ], [ Cracked ]
+       Missing: [ Left at venue ], [ Venue wash pit ], [ Guest table ]
    - Direct link to Shelf/Inventory: 1-tap jump to item audit & editing
    - Enlarge Photo Lightbox with zoom badge & high-resolution preview
-   - Item Details Modal: Current Commissary Stock prominently highlighted
-   - Context-aware KPIs: Hides irrelevant "Back in hand" during van staging
-   - Actionable inspector: Direct jump to Adjust Qty or Record Returns
    - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
-   - Self-healing Modal Navigation History Stack (Prevents stuck Back buttons)
-   - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -52,6 +51,29 @@ App.Views.Catering.Modals = (function () {
   var U = App.UI, S = App.Store;
   var Nav = App.Views.Catering.Nav;
   var activeQtyModalReturnToChecklist = false;
+
+  /* Active Packdown Return In-Modal State */
+  var activePackState = {
+    itemId: '',
+    out: 0,
+    back: 0,
+    broken: 0,
+    brokenReason: 'Shattered / Dropped',
+    missingReason: 'Left at venue',
+    isConsumable: false
+  };
+
+  var BROKEN_REASONS = [
+    'Shattered / Dropped',
+    'Melted / Burnt',
+    'Cracked'
+  ];
+
+  var MISSING_REASONS = [
+    'Left at venue',
+    'Venue wash pit',
+    'Guest table'
+  ];
 
   function resetFlags() {
     activeQtyModalReturnToChecklist = false;
@@ -171,10 +193,11 @@ App.Views.Catering.Modals = (function () {
       }
 
     } else {
-      // 2. LIVE ON LOCATION CONTEXT
+      // 2. LIVE ON LOCATION CONTEXT (Shows Intact, Broken, Missing)
       var outQty = line ? (line.out || 0) : 0;
       var backQty = line ? (line.back || 0) : 0;
-      var missingQty = isConsumable ? 0 : Math.max(0, outQty - backQty);
+      var brokenQty = line ? (line.broken || 0) : 0;
+      var missingQty = isConsumable ? 0 : Math.max(0, outQty - backQty - brokenQty);
       var usedQty = isConsumable ? Math.max(0, outQty - backQty) : 0;
 
       statsHtml =
@@ -187,8 +210,8 @@ App.Views.Catering.Modals = (function () {
           '</div>' +
           '<div class="kpi">' +
             '<div class="kpi-in">' +
-              '<div class="kpi-n" style="color:' + (missingQty > 0 ? 'var(--alert)' : 'var(--foliage)') + '">' + backQty + '</div>' +
-              '<div class="kpi-l">Returned Back</div>' +
+              '<div class="kpi-n" style="color:' + (missingQty > 0 || brokenQty > 0 ? 'var(--alert)' : 'var(--foliage)') + '">' + backQty + '</div>' +
+              '<div class="kpi-l">Returned Intact</div>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -199,11 +222,20 @@ App.Views.Catering.Modals = (function () {
           '</div>' +
         '</div>';
 
+      if (brokenQty > 0) {
+        statusBanner +=
+          '<div class="card mb8" style="background:#FFF9F8;border-left:4px solid var(--alert);padding:8px 10px">' +
+            '<div class="row" style="color:var(--alert);font-size:11.5px;font-weight:700">' +
+              U.icon('alertTriangle', 'mr4') + brokenQty + ' ' + U.esc(it.unit) + ' broken (' + U.esc(line.brokenReason || 'Damaged') + ')' +
+            '</div>' +
+          '</div>';
+      }
+
       if (missingQty > 0) {
-        statusBanner =
-          '<div class="card mb12" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:9px 11px">' +
-            '<div class="row" style="color:var(--alert);font-size:12px;font-weight:700">' +
-              U.icon('alertTriangle', 'mr4') + missingQty + ' ' + U.esc(it.unit) + ' missing from return' +
+        statusBanner +=
+          '<div class="card mb12" style="background:var(--alert-tint);border-left:4px solid #D49B42;padding:8px 10px">' +
+            '<div class="row" style="color:#8A6805;font-size:11.5px;font-weight:700">' +
+              U.icon('alertTriangle', 'mr4') + missingQty + ' ' + U.esc(it.unit) + ' missing (' + U.esc(line.missingReason || 'Left at venue') + ')' +
             '</div>' +
           '</div>';
       } else if (isConsumable && usedQty > 0) {
@@ -214,7 +246,7 @@ App.Views.Catering.Modals = (function () {
               '<strong style="color:var(--gold)">' + usedQty + ' ' + U.esc(it.unit) + ' consumed</strong>' +
             '</div>' +
           '</div>';
-      } else if (outQty > 0 && backQty >= outQty) {
+      } else if (outQty > 0 && backQty >= outQty && brokenQty === 0) {
         statusBanner =
           '<div class="card mb12" style="background:var(--success-tint);border-color:rgba(36,90,62,0.3);padding:7px 11px">' +
             '<div class="row" style="color:var(--success);font-size:12px;font-weight:700">' +
@@ -317,9 +349,9 @@ App.Views.Catering.Modals = (function () {
           '</span>' +
           '<div class="grow" style="min-width:0">' +
             '<h3 style="font-size:15px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' + U.esc(it.name) + '</h3>' +
-            '<div class="row mt4" style="flex-wrap:wrap;gap:4px">' +
-              U.tag(it.brand || it.tagLabel || 'Loreto', it.tagColor) +
-              '<span class="muted" style="font-size:11px">' + maxStock + ' in commissary</span>' +
+            '<div class="row mt4" style="flex-wrap:wrap;margin:-2px">' +
+              '<span class="m2">' + U.tag(it.brand || it.tagLabel || 'Loreto', it.tagColor) + '</span>' +
+              '<span class="muted m2" style="font-size:11px">' + maxStock + ' in commissary</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -353,6 +385,9 @@ App.Views.Catering.Modals = (function () {
     U.hydrateThumbs(body);
   }
 
+  /* ==========================================================================
+     FEATURE 2: BROKEN VS MISSING VS RETURNED PACKDOWN MODAL
+     ========================================================================== */
   function openPackReturnModal(itemId, isBack) {
     var ev = S.activeEvent();
     if (!ev) return;
@@ -364,50 +399,159 @@ App.Views.Catering.Modals = (function () {
       Nav.push(function (b) { openPackReturnModal(itemId, b); });
     }
 
-    var it = S.item(itemId);
+    activePackState = {
+      itemId: itemId,
+      out: line.out || 0,
+      back: line.back !== undefined ? line.back : line.out,
+      broken: line.broken || 0,
+      brokenReason: line.brokenReason || 'Shattered / Dropped',
+      missingReason: line.missingReason || 'Left at venue',
+      isConsumable: !!line.isConsumable
+    };
+
+    renderPackReturnSheet(ev, line);
+  }
+
+  function renderPackReturnSheet(ev, line) {
+    var it = S.item(line.itemId);
     var photoKey = it && it.photoId ? (it.photoId + '-t') : '';
     var cat = it ? S.category(it.categoryId) : null;
-    var isConsumable = !!line.isConsumable;
+    var isConsumable = activePackState.isConsumable;
+
+    var outQty = activePackState.out;
+    var backQty = activePackState.back;
+    var brokenQty = isConsumable ? 0 : activePackState.broken;
+    var missingQty = isConsumable ? Math.max(0, outQty - backQty) : Math.max(0, outQty - backQty - brokenQty);
+
+    // 1-Tap Broken Reason Chips
+    var brokenChipsHtml = '';
+    if (!isConsumable && brokenQty > 0) {
+      brokenChipsHtml =
+        '<div class="mt8">' +
+          '<span class="pack-reason-label">Damage Reason (1-Tap):</span>' +
+          '<div class="pack-chips-cloud">' +
+            BROKEN_REASONS.map(function (rsn) {
+              var isSel = (activePackState.brokenReason === rsn);
+              return '<button type="button" class="pack-reason-chip chip-broken' + (isSel ? ' on' : '') + '" data-act="pack-pick-broken-reason" data-val="' + U.esc(rsn) + '">' +
+                U.esc(rsn) +
+              '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+    }
+
+    // 1-Tap Missing Reason Chips
+    var missingSectionHtml = '';
+    if (!isConsumable && missingQty > 0) {
+      missingSectionHtml =
+        '<div class="pack-step-card missing-box mt8">' +
+          '<div class="row row-between mb4">' +
+            '<div>' +
+              '<div style="font-size:12.5px;font-weight:700;color:#8A6805">' + U.icon('alertTriangle', 'mr4') + missingQty + ' Missing Pieces</div>' +
+              '<div class="muted" style="font-size:10.5px">Left behind on site / unaccounted for</div>' +
+            '</div>' +
+            '<span class="tag tag-yellow" style="font-size:11px;font-weight:700">' + missingQty + ' missing</span>' +
+          '</div>' +
+          '<span class="pack-reason-label">Where Was It Left? (1-Tap):</span>' +
+          '<div class="pack-chips-cloud">' +
+            MISSING_REASONS.map(function (mrsn) {
+              var isSel = (activePackState.missingReason === mrsn);
+              return '<button type="button" class="pack-reason-chip chip-missing' + (isSel ? ' on' : '') + '" data-act="pack-pick-missing-reason" data-val="' + U.esc(mrsn) + '">' +
+                U.esc(mrsn) +
+              '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+    }
+
+    // Triage KPI summary header
+    var triageKpiHtml = isConsumable ? (
+      '<div class="pack-triage-card mb8">' +
+        '<div class="pack-triage-grid">' +
+          '<div class="pack-triage-col col-returned"><div class="pack-triage-num" style="color:var(--foliage)">' + backQty + '</div><div class="pack-triage-lbl">Returned</div></div>' +
+          '<div class="pack-triage-col col-missing"><div class="pack-triage-num" style="color:#D49B42">' + (outQty - backQty) + '</div><div class="pack-triage-lbl">Consumed</div></div>' +
+        '</div>' +
+      '</div>'
+    ) : (
+      '<div class="pack-triage-card mb8">' +
+        '<div class="pack-triage-grid">' +
+          '<div class="pack-triage-col col-returned"><div class="pack-triage-num" style="color:var(--foliage)">' + backQty + '</div><div class="pack-triage-lbl">Intact</div></div>' +
+          '<div class="pack-triage-col col-broken"><div class="pack-triage-num" style="color:var(--alert)">' + brokenQty + '</div><div class="pack-triage-lbl">Broken</div></div>' +
+          '<div class="pack-triage-col col-missing"><div class="pack-triage-num" style="color:#D49B42">' + missingQty + '</div><div class="pack-triage-lbl">Missing</div></div>' +
+        '</div>' +
+      '</div>'
+    );
+
+    // Broken Stepper Block
+    var brokenBlockHtml = isConsumable ? '' : (
+      '<div class="pack-step-card broken-box mb8">' +
+        '<div class="row row-between">' +
+          '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
+            '<div style="font-size:12.5px;font-weight:700;color:var(--alert)">' + U.icon('trash', 'mr4') + 'Broken / Scrap</div>' +
+            '<div class="muted" style="font-size:10.5px">Damaged gear permanently scrapped</div>' +
+          '</div>' +
+          '<div class="stepper stepper-red">' +
+            '<button type="button" class="step-btn" data-act="pack-broken-minus">' + U.icon('minus') + '</button>' +
+            '<span class="step-num" style="display:flex;align-items:center;justify-content:center;font-weight:700">' + brokenQty + '</span>' +
+            '<button type="button" class="step-btn" data-act="pack-broken-plus">' + U.icon('plus') + '</button>' +
+          '</div>' +
+        '</div>' +
+        brokenChipsHtml +
+      '</div>'
+    );
 
     var html =
       '<div class="quick-qty-modal">' +
-        '<div class="row mb12" style="align-items:flex-start">' +
-          '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + line.itemId + '" style="width:48px;height:48px;flex:0 0 48px;margin-right:10px">' +
+        '<div class="row mb8" style="align-items:flex-start">' +
+          '<span class="pack-thumb" data-photo="' + photoKey + '" data-act="thumb-click" data-id="' + line.itemId + '" style="width:46px;height:46px;flex:0 0 46px;margin-right:10px">' +
             (!photoKey ? U.icon(cat ? cat.icon : 'plate') : '') +
           '</span>' +
           '<div class="grow" style="min-width:0">' +
             '<h3 style="font-size:15px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' + U.esc(line.name) + '</h3>' +
-            '<div class="row mt4" style="flex-wrap:wrap;gap:4px">' +
-              U.tag(line.brand || line.tagLabel || 'Loreto', line.tagColor) +
-              '<span class="muted" style="font-size:11px">' + line.out + ' in van</span>' +
+            '<div class="row mt4" style="flex-wrap:wrap;margin:-2px">' +
+              '<span class="m2">' + U.tag(line.brand || line.tagLabel || 'Loreto', line.tagColor) + '</span>' +
+              '<span class="muted m2" style="font-size:11px">Staged: ' + outQty + ' ' + U.esc(line.unit) + '</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="card mb12" style="text-align:center;padding:14px 10px">' +
-          '<label style="font-size:11.5px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;display:block;margin-bottom:8px">Pieces Returned</label>' +
-          '<div class="row" style="justify-content:center;align-items:center">' +
-            '<div class="stepper" style="transform:scale(1.15)">' +
-              '<button type="button" class="step-btn" data-act="modal-pack-delta" data-delta="-1">' + U.icon('minus') + '</button>' +
-              '<input type="number" inputmode="numeric" pattern="[0-9]*" class="step-num" id="modal-pack-input" value="' + line.back + '">' +
-              '<button type="button" class="step-btn" data-act="modal-pack-delta" data-delta="1">' + U.icon('plus') + '</button>' +
+
+        triageKpiHtml +
+
+        '<!-- Intact Return Stepper Card -->' +
+        '<div class="pack-step-card intact-box mb8">' +
+          '<div class="row row-between">' +
+            '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
+              '<div style="font-size:12.5px;font-weight:700;color:var(--foliage)">' + U.icon('check', 'mr4') + 'Returned Intact</div>' +
+              '<div class="muted" style="font-size:10.5px">' + (isConsumable ? 'Unused supplies brought back' : 'Good condition, goes back on shelf') + '</div>' +
             '</div>' +
-            '<button type="button" class="btn-max" data-act="modal-pack-set" data-val="' + line.out + '">All (' + line.out + ')</button>' +
+            '<div class="stepper stepper-green">' +
+              '<button type="button" class="step-btn" data-act="pack-back-minus">' + U.icon('minus') + '</button>' +
+              '<span class="step-num" style="display:flex;align-items:center;justify-content:center;font-weight:700">' + backQty + '</span>' +
+              '<button type="button" class="step-btn" data-act="pack-back-plus">' + U.icon('plus') + '</button>' +
+            '</div>' +
           '</div>' +
-          '<div class="quick-qty-pills mt12">' +
-            '<button type="button" data-act="modal-pack-delta" data-delta="1">+1</button>' +
-            '<button type="button" data-act="modal-pack-delta" data-delta="5">+5</button>' +
-            (isConsumable ? '<button type="button" data-act="modal-pack-set" data-val="0" style="color:var(--alert);font-weight:700">All used</button>' : '') +
-            '<button type="button" data-act="modal-pack-set" data-val="' + line.out + '" style="color:var(--foliage);font-weight:700">All ' + line.out + ' back</button>' +
+          '<div class="quick-qty-pills mt8" style="margin-bottom:0">' +
+            (isConsumable ? '<button type="button" data-act="pack-back-set" data-val="0" style="color:var(--alert);font-weight:700">All used (0)</button>' : '') +
+            '<button type="button" data-act="pack-back-delta" data-delta="1">+1</button>' +
+            '<button type="button" data-act="pack-back-delta" data-delta="5">+5</button>' +
+            '<button type="button" data-act="pack-back-set" data-val="' + outQty + '" style="color:var(--foliage);font-weight:700">All ' + outQty + ' back</button>' +
           '</div>' +
         '</div>' +
+
+        brokenBlockHtml +
+        missingSectionHtml +
+
         '<div class="sheet-sticky-footer">' +
-          '<button type="button" class="btn btn-primary mb8" data-act="modal-pack-save" data-id="' + line.itemId + '" data-max="' + line.out + '">Save Return Count</button>' +
-          '<button type="button" class="btn btn-ghost" data-act="' + (Nav.hasBack() ? 'modal-back' : 'sheet-close') + '">' + (Nav.hasBack() ? '&larr; Back' : 'Cancel') + '</button>' +
+          '<button type="button" class="btn btn-primary mb8" data-act="pack-return-save" data-id="' + line.itemId + '">' +
+            U.icon('check', 'mr4') + ' Save Pack-Down Count' +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost" data-act="' + (Nav.hasBack() ? 'modal-back' : 'sheet-close') + '">' +
+            (Nav.hasBack() ? '&larr; Back' : 'Cancel') +
+          '</button>' +
         '</div>' +
       '</div>';
 
-    var dir = isBack ? 'back' : (Nav.hasBack() ? 'forward' : 'none');
-    var body = U.openSheet('Returns: ' + line.name, html, delegate, dir);
+    var body = U.openSheet('Returns: ' + line.name, html, delegate, 'forward');
     U.hydrateThumbs(body);
   }
 
@@ -598,30 +742,93 @@ App.Views.Catering.Modals = (function () {
       return true;
     }
 
-    if (act === 'modal-pack-delta') {
-      var pDelta = parseInt(el.getAttribute('data-delta'), 10) || 0;
-      var pInput = document.getElementById('modal-pack-input');
-      if (pInput) {
-        var curVal = parseInt(pInput.value, 10) || 0;
-        pInput.value = Math.max(0, curVal + pDelta);
+    /* Pack-Down Triage Actions */
+    if (act === 'pack-back-plus' || act === 'pack-back-minus') {
+      var deltaBack = (act === 'pack-back-plus') ? 1 : -1;
+      var maxBack = activePackState.out - activePackState.broken;
+      activePackState.back = Math.max(0, Math.min(maxBack, activePackState.back + deltaBack));
+      var lineForBack = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForBack = l; });
+      if (lineForBack) renderPackReturnSheet(ev, lineForBack);
+      return true;
+    }
+    if (act === 'pack-back-delta') {
+      var dVal = parseInt(el.getAttribute('data-delta'), 10) || 0;
+      var maxB = activePackState.out - activePackState.broken;
+      activePackState.back = Math.max(0, Math.min(maxB, activePackState.back + dVal));
+      var lineForBD = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForBD = l; });
+      if (lineForBD) renderPackReturnSheet(ev, lineForBD);
+      return true;
+    }
+    if (act === 'pack-back-set') {
+      var targetBack = parseInt(el.getAttribute('data-val'), 10) || 0;
+      var maxBS = activePackState.out - activePackState.broken;
+      activePackState.back = Math.max(0, Math.min(maxBS, targetBack));
+      var lineForBS = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForBS = l; });
+      if (lineForBS) renderPackReturnSheet(ev, lineForBS);
+      return true;
+    }
+
+    if (act === 'pack-broken-plus' || act === 'pack-broken-minus') {
+      var deltaBrk = (act === 'pack-broken-plus') ? 1 : -1;
+      var maxBrk = activePackState.out - activePackState.back;
+      activePackState.broken = Math.max(0, Math.min(maxBrk, activePackState.broken + deltaBrk));
+      var lineForBrk = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForBrk = l; });
+      if (lineForBrk) renderPackReturnSheet(ev, lineForBrk);
+      return true;
+    }
+
+    if (act === 'pack-pick-broken-reason') {
+      activePackState.brokenReason = el.getAttribute('data-val') || 'Shattered / Dropped';
+      var lineForBrsn = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForBrsn = l; });
+      if (lineForBrsn) renderPackReturnSheet(ev, lineForBrsn);
+      return true;
+    }
+
+    if (act === 'pack-pick-missing-reason') {
+      activePackState.missingReason = el.getAttribute('data-val') || 'Left at venue';
+      var lineForMrsn = null;
+      ev.lines.forEach(function (l) { if (l.itemId === activePackState.itemId) lineForMrsn = l; });
+      if (lineForMrsn) renderPackReturnSheet(ev, lineForMrsn);
+      return true;
+    }
+
+    if (act === 'pack-return-save') {
+      var saveItemId = activePackState.itemId;
+      var cleanBack = Math.max(0, Math.min(activePackState.out, activePackState.back));
+      var maxAllowedBroken = activePackState.out - cleanBack;
+      var cleanBroken = activePackState.isConsumable ? 0 : Math.max(0, Math.min(maxAllowedBroken, activePackState.broken));
+      var cleanMissing = activePackState.isConsumable ? 0 : Math.max(0, activePackState.out - cleanBack - cleanBroken);
+
+      S.setPackReturn(
+        ev,
+        saveItemId,
+        cleanBack,
+        cleanBroken,
+        activePackState.brokenReason,
+        activePackState.missingReason
+      );
+
+      if (cleanBroken > 0 || cleanMissing > 0) {
+        var parts = [cleanBack + ' returned'];
+        if (cleanBroken > 0) parts.push(cleanBroken + ' broken');
+        if (cleanMissing > 0) parts.push(cleanMissing + ' missing');
+        U.toast(parts.join(', ') + '.');
+      } else {
+        U.toast('All ' + cleanBack + ' returned in good shape.');
       }
-      return true;
-    }
-    if (act === 'modal-pack-set') {
-      var pSetVal = parseInt(el.getAttribute('data-val'), 10) || 0;
-      var pInputDirect = document.getElementById('modal-pack-input');
-      if (pInputDirect) pInputDirect.value = pSetVal;
-      return true;
-    }
-    if (act === 'modal-pack-save') {
-      var pSaveInput = document.getElementById('modal-pack-input');
-      var pMax = parseInt(el.getAttribute('data-max'), 10) || 9999;
-      var finalReturnQty = Math.min(pMax, Math.max(0, parseInt(pSaveInput ? pSaveInput.value : 0, 10) || 0));
-      S.setBack(ev, id, finalReturnQty);
-      if (Nav) Nav.clear();
-      U.closeSheet();
-      App.rerenderQuiet();
-      U.toast('Return count saved.');
+
+      if (Nav.hasBack()) {
+        Nav.back();
+      } else {
+        Nav.clear();
+        U.closeSheet();
+        App.rerenderQuiet();
+      }
       return true;
     }
 
