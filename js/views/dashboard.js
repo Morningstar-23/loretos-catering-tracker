@@ -1,7 +1,8 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Dashboard (js/views/dashboard.js)
    - Harmonized Active Booking Card (Matches Catering Mode .cat-head 1:1)
-   - Multi-Way Incident Indicators: Broken, At Venue, Missing, Recovered
+   - Executive Analytics & Performance Overview (Recovery % & Casualties)
+   - Direct 1-Tap Routing to Full Analytics / Reports in History
    - Real Vector SVG Recovery Trend Line/Bar Chart (Zero Cut-Offs)
    - Redesigned Inventory Stock Health Widget with Dedicated Full-Width Action
    - Direct Tab Routing into Catering Mode (Load-out, Crew, Pack-down)
@@ -19,6 +20,9 @@ App.Views.dashboard = (function () {
     var t = k.activeTally;
     var historyList = S.history();
     var allItems = S.items();
+    var analytics = (S.analyticsSummary && typeof S.analyticsSummary === 'function')
+      ? S.analyticsSummary()
+      : null;
 
     // Inventory Health Distribution
     var emptyCount = 0, lowCount = 0, inStockCount = 0;
@@ -183,7 +187,9 @@ App.Views.dashboard = (function () {
         '<div class="card mb12">' +
           '<div class="row row-between mb4">' +
             '<strong style="font-size:12px;color:var(--timber-ink)">' + U.icon('history', 'mr4') + ' Equipment Recovery Trend</strong>' +
-            '<span class="muted" style="font-size:11px">Past ' + recoveryTrends.length + ' events</span>' +
+            '<button type="button" class="muted" data-act="go-analytics" style="font-size:11px;font-weight:700;color:var(--inasal-orange);background:none;border:none;cursor:pointer;padding:0">' +
+              'View Analytics &rarr;' +
+            '</button>' +
           '</div>' +
           '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" width="100%" height="' + svgH + '" style="display:block;margin:4px 0">' +
             svgContent +
@@ -192,6 +198,37 @@ App.Views.dashboard = (function () {
             '<span>Green dot = 100% equipment returned</span>' +
             '<span>Orange = gear discrepancies</span>' +
           '</div>' +
+        '</div>';
+    }
+
+    // Comprehensive Analytics & Reports Overview Widget
+    var analyticsOverviewHtml = '';
+    if (analytics && analytics.totalGigs > 0) {
+      analyticsOverviewHtml =
+        '<div class="card mb12" style="border-left:3.5px solid var(--foliage);background:linear-gradient(180deg, #FFFFFF 0%, var(--sand-soft) 100%)">' +
+          '<div class="row row-between mb8">' +
+            '<strong style="font-size:13px;color:var(--timber-ink);display:flex;align-items:center">' +
+              U.icon('history', 'mr6') + ' Performance & Analytics Overview' +
+            '</strong>' +
+            '<span class="tag tag-green" style="font-size:9.5px">' + analytics.totalGigs + ' Gigs</span>' +
+          '</div>' +
+          '<div class="row row-between mb8" style="text-align:center">' +
+            '<div style="flex:1 1 0%">' +
+              '<div style="font-size:18px;font-weight:700;color:var(--foliage);font-family:Iowan Old Style,serif">' + analytics.overallReturnPct + '%</div>' +
+              '<div class="muted" style="font-size:10px">Intact Return</div>' +
+            '</div>' +
+            '<div style="flex:1 1 0%;border-left:1px solid var(--line);border-right:1px solid var(--line)">' +
+              '<div style="font-size:18px;font-weight:700;color:' + (analytics.totalIncidents > 0 ? 'var(--alert)' : 'var(--timber-ink)') + ';font-family:Iowan Old Style,serif">' + analytics.totalIncidents + '</div>' +
+              '<div class="muted" style="font-size:10px">Discrepancies</div>' +
+            '</div>' +
+            '<div style="flex:1 1 0%">' +
+              '<div style="font-size:18px;font-weight:700;color:var(--gold, #D49B42);font-family:Iowan Old Style,serif">' + analytics.totalConsumed + '</div>' +
+              '<div class="muted" style="font-size:10px">Supplies Burnt</div>' +
+            '</div>' +
+          '</div>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="go-analytics" style="min-height:36px;font-size:12px;font-weight:700;color:var(--inasal-orange);border-color:var(--line);background:#FFF;box-shadow:none">' +
+            U.icon('chart', 'mr4') + ' Open Full Analytics & Reports &rarr;' +
+          '</button>' +
         '</div>';
     }
 
@@ -288,6 +325,7 @@ App.Views.dashboard = (function () {
 
     return activeCardHtml +
       kpiGrid +
+      analyticsOverviewHtml +
       recoveryChartHtml +
       healthBarHtml +
       quickBar +
@@ -314,6 +352,13 @@ App.Views.dashboard = (function () {
       return;
     }
     if (act === 'go-history') {
+      App.go('history');
+      return;
+    }
+    if (act === 'go-analytics') {
+      if (App.Views.history && App.Views.history.setTab) {
+        App.Views.history.setTab('analytics');
+      }
       App.go('history');
       return;
     }
