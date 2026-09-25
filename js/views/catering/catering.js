@@ -3,6 +3,8 @@
    - Zero emojis: Clean Lucide/Feather vector SVG iconography
    - Zero-flash quantity adjustments: view animations isolated strictly to mode switches
    - Synchronous in-memory thumbnail caching: stops images from reloading on qty changes
+   - Universal "Items per category" picker: [ 2 | 3 | 5 | 10 | All ] mirrored from Inventory
+   - Stock Discrepancy Reconciliation: Update Commissary Stock, Cap, or Move to Borrowed
    - Persistent Horizontal Scroll for Category Chips (Never resets position on select)
    - Dynamic "Reset filters" button for active category, search, or warnings
    - Save manual van load-out as a preset and link it directly to active event
@@ -36,8 +38,9 @@ App.Views.catering = (function () {
   var gridCols = 2;
   var openAccordions = {};
   var catPages = {};
+  var catPageSize = 5; // Mirrored from Inventory (2, 3, 5, 10, All)
   var chipsScrollLeft = 0;
-  var viewModeSwitchAnim = false; // Flag: only animate when toggling Cards/Compact/Grid
+  var viewModeSwitchAnim = false;
 
   /* In-memory photo cache to eliminate asynchronous image popping during re-renders */
   var photoCache = {};
@@ -60,7 +63,7 @@ App.Views.catering = (function () {
     }, 10);
   }
 
-  /* Instantaneous thumbnail hydration (synchronous from memory if previously fetched) */
+  /* Instantaneous thumbnail hydration */
   function hydrateThumbsFast(root) {
     var doc = root || document;
     var thumbNodes = doc.querySelectorAll('[data-photo]');
@@ -157,7 +160,6 @@ App.Views.catering = (function () {
     }
   }
 
-  /* Inline "‹ 1 / 3 ›" pager that lives in the list header (same data-acts as before) */
   function miniPager(opts) {
     if ((opts.totalPages || 1) <= 1) return '';
     return '<div class="mini-pager">' +
@@ -176,7 +178,6 @@ App.Views.catering = (function () {
       }).join('');
   }
 
-  /* search + view switch on one row, category chips, then "N item types · Reset · pager" */
   function listControls(placeholder, filteredCount, hasActiveFilters) {
     var resetBtn = hasActiveFilters
       ? '<button type="button" class="btn-reset-filters" data-act="reset-all-filters" title="Clear all filters">' + U.icon('refresh') + 'Reset</button>'
@@ -275,6 +276,83 @@ App.Views.catering = (function () {
     });
   }
 
+  /* Dedicated Stock Discrepancy Reconciliation Sheet */
+  function openStockDiscrepancyModal(ev, autoProceedOnResolve) {
+    var shortages = getActiveShortages(ev);
+    if (!shortages.length) {
+      U.closeSheet();
+      if (autoProceedOnResolve) {
+        S.markLoaded(ev);
+        tab = 'back';
+        page = 1;
+        catPages = {};
+        App.rerenderQuiet();
+        U.toast('Van locked and departed.');
+      } else {
+        App.rerenderQuiet();
+      }
+      return;
+    }
+
+    var itemsHtml = shortages.map(function (sh) {
+      var it = sh.item;
+      var l = sh.line;
+      var owned = sh.owned;
+      var staged = sh.staged;
+      var diff = sh.shortBy;
+      var proceedParam = autoProceedOnResolve ? 'true' : 'false';
+
+      return '<div class="card mb8" style="background:#FFFAF8;border:1px solid rgba(214,57,32,0.25);border-left:4px solid var(--alert);padding:10px">' +
+        '<div class="row row-between mb4">' +
+          '<span class="item-name truncate" style="font-size:13.5px">' + U.esc(l.name) + '</span>' +
+          '<span class="tag tag-red" style="font-size:9.5px">+' + diff + ' over stock</span>' +
+        '</div>' +
+        '<div class="row row-between mb8" style="font-size:11.5px;color:var(--timber-soft)">' +
+          '<span>Staged in van: <b style="color:var(--timber-ink)">' + staged + ' ' + U.esc(l.unit) + '</b></span>' +
+          '<span>Commissary shelf: <b style="color:var(--timber-ink)">' + owned + ' ' + U.esc(l.unit) + '</b></span>' +
+        '</div>' +
+        '<div class="row" style="flex-wrap:wrap;margin:-2px">' +
+          '<button type="button" class="btn btn-primary btn-sm grow m2" data-act="disc-sync-single" data-id="' + l.itemId + '" data-proceed="' + proceedParam + '" style="min-height:32px;font-size:11px;padding:2px 8px">' +
+            U.icon('plus', 'mr4') + 'Update Stock to ' + staged +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="disc-cap-single" data-id="' + l.itemId + '" data-proceed="' + proceedParam + '" style="min-height:32px;font-size:11px;padding:2px 8px">' +
+            'Cap to ' + owned +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="disc-borrow-single" data-id="' + l.itemId + '" data-proceed="' + proceedParam + '" style="min-height:32px;font-size:11px;padding:2px 8px">' +
+            '+' + diff + ' to Borrowed' +
+          '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var proceedParamBulk = autoProceedOnResolve ? 'true' : 'false';
+
+    var html =
+      '<div class="banner mb12" style="background:linear-gradient(150deg, #A83823 0%, #D63920 100%);box-shadow:none;padding:12px">' +
+        '<h3 style="font-size:15.5px">' + U.icon('alertTriangle', 'mr4') + shortages.length + ' Item' + (shortages.length === 1 ? '' : 's') + ' Exceed Commissary Stock</h3>' +
+        '<p class="muted mt4" style="font-size:11.5px;color:rgba(255,255,255,0.9)">' +
+          'To keep inventory in sync, choose how to reconcile before the van departs:' +
+        '</p>' +
+      '</div>' +
+      '<div class="list mb12">' + itemsHtml + '</div>' +
+      '<div class="card mb12" style="padding:10px;background:var(--sand-soft)">' +
+        '<label style="font-size:11.5px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;display:block;margin-bottom:6px">Bulk Reconcile All</label>' +
+        '<div class="row" style="margin:-2px">' +
+          '<button type="button" class="btn btn-primary btn-sm grow m2" data-act="disc-sync-all" data-proceed="' + proceedParamBulk + '">' +
+            U.icon('refresh', 'mr4') + 'Update All Stock to Van' +
+          '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="disc-cap-all" data-proceed="' + proceedParamBulk + '">' +
+            'Cap All to Stock' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sheet-sticky-footer">' +
+        '<button type="button" class="btn btn-ghost" data-act="sheet-close">Back to Van Staging</button>' +
+      '</div>';
+
+    U.openSheet('Stock Reconciliation', html, onAct);
+  }
+
   function loadTab(ev) {
     var isStaging = ev.status === 'staging';
     var isOut = ev.status === 'out';
@@ -295,7 +373,6 @@ App.Views.catering = (function () {
       : (hasVanLines ? 'Manual load' : 'Presets');
     var presetAction = (p || hasVanLines) ? 'open-preset-options' : 'open-kit-picker';
 
-    /* Kit selector (looks like a select) + the one primary action */
     var actionRow = '<div class="cat-actions">' +
       '<button type="button" class="cat-kit" data-act="' + presetAction + '">' +
         '<span class="cat-kit-ico">' + U.icon('layers') + '</span>' +
@@ -309,7 +386,6 @@ App.Views.catering = (function () {
       ? '<div class="live-edit-banner cat-live"><h4>' + U.icon('truck') + ' Live in-field load-out</h4><p>Adjust counts or add items. Returns sync automatically.</p></div>'
       : '';
 
-    /* ONE stock-alert strip (replaces the old banner + separate "Only warnings" chip) */
     var n = shortages.length;
     var alertStrip = n > 0 ? (
       '<div class="cat-alert' + (onlyWarnings ? ' on' : '') + '">' +
@@ -317,7 +393,7 @@ App.Views.catering = (function () {
           '<span>' + (onlyWarnings ? 'Showing ' + n + ' over stock' : n + ' over stock') + '</span>' +
         '</div>' +
         '<button type="button" class="cat-alert-btn ghost" data-act="toggle-load-warnings">' + (onlyWarnings ? 'Show all' : 'Filter') + '</button>' +
-        '<button type="button" class="cat-alert-btn solid" data-act="auto-clamp-stock">Cap stock</button>' +
+        '<button type="button" class="cat-alert-btn solid" data-act="open-discrepancy-sheet">Resolve</button>' +
       '</div>'
     ) : '';
 
@@ -339,18 +415,34 @@ App.Views.catering = (function () {
     var controls = listControls('Search gear', filtered.length, hasActiveFilters);
 
     var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyWarnings ? 'No items exceeding stock match this filter.' : 'No matching items.') + '</p></div>'
-      : (viewMode === 'compact' ? Views.renderCompactView(filtered, isOut, ev.presetId, openAccordions, catPages)
+      : (viewMode === 'compact' ? Views.renderCompactView(filtered, isOut, ev.presetId, openAccordions, catPages, catPageSize)
       : (viewMode === 'grid' ? Views.renderGridView(paginatedLines, ev.presetId, gridCols)
       : '<div class="list">' + Views.renderCardsView(paginatedLines, isOut, ev.presetId) + '</div>'));
 
-    /* Only apply the entrance animation when explicitly switching view modes */
     var animWrapClass = viewModeSwitchAnim ? ' view-content-enter' : '';
     viewModeSwitchAnim = false;
     var content = '<div class="catering-view-wrap' + animWrapClass + '">' + rawContent + '</div>';
 
-    var pagination = (viewMode !== 'compact' && filtered.length > 0)
-      ? U.paginationBar({ page: page, totalPages: totalPages, pageSize: pageSize, prevAct: 'cat-prev-page', nextAct: 'cat-next-page', sizeAct: 'cat-change-page-size' })
-      : '';
+    // Universal Bottom Bar: Matches Inventory compact view exactly
+    var pagination = '';
+    if (viewMode === 'compact' && filtered.length > 0) {
+      var catSizes = [2, 3, 5, 10, 'All'];
+      var sizePills = catSizes.map(function (sz) {
+        var isSel = (catPageSize === sz || (sz === 'All' && catPageSize >= 999));
+        var szVal = (sz === 'All') ? 999 : sz;
+        return '<button type="button" class="size-pill' + (isSel ? ' on' : '') + '" data-act="change-cat-page-size" data-size="' + szVal + '">' + sz + '</button>';
+      }).join('');
+
+      pagination =
+        '<div class="pagination-bar" style="margin-top:12px;padding:12px 2px 20px 2px">' +
+          '<div class="pagination-size-wrap" style="margin-top:0">' +
+            '<span class="pagination-size-label">Show per category:</span>' +
+            '<div class="pagination-size-pills">' + sizePills + '</div>' +
+          '</div>' +
+        '</div>';
+    } else if (filtered.length > 0) {
+      pagination = U.paginationBar({ page: page, totalPages: totalPages, pageSize: pageSize, prevAct: 'cat-prev-page', nextAct: 'cat-next-page', sizeAct: 'cat-change-page-size' });
+    }
 
     var bottomActions = isStaging ? (
       '<div class="cat-cta">' +
@@ -401,7 +493,7 @@ App.Views.catering = (function () {
     var controls = listControls('Search gear', filtered.length, hasActiveFilters);
 
     var rawContent = !filtered.length ? '<div class="empty mb12"><p class="muted">' + (onlyShort ? 'All equipment returned!' : 'No items match filter.') + '</p></div>'
-      : (viewMode === 'compact' ? Views.renderPackCompactView(filtered, openAccordions, catPages)
+      : (viewMode === 'compact' ? Views.renderPackCompactView(filtered, openAccordions, catPages, catPageSize)
       : (viewMode === 'grid' ? Views.renderPackGridView(paginatedLines, gridCols)
       : '<div class="list">' + Views.renderPackCardsView(paginatedLines) + '</div>'));
 
@@ -409,9 +501,25 @@ App.Views.catering = (function () {
     viewModeSwitchAnim = false;
     var content = '<div class="catering-view-wrap' + animWrapClass + '">' + rawContent + '</div>';
 
-    var pagination = (viewMode !== 'compact' && filtered.length > 0)
-      ? U.paginationBar({ page: page, totalPages: totalPages, pageSize: pageSize, prevAct: 'cat-prev-page', nextAct: 'cat-next-page', sizeAct: 'cat-change-page-size' })
-      : '';
+    var pagination = '';
+    if (viewMode === 'compact' && filtered.length > 0) {
+      var catSizes = [2, 3, 5, 10, 'All'];
+      var sizePills = catSizes.map(function (sz) {
+        var isSel = (catPageSize === sz || (sz === 'All' && catPageSize >= 999));
+        var szVal = (sz === 'All') ? 999 : sz;
+        return '<button type="button" class="size-pill' + (isSel ? ' on' : '') + '" data-act="change-cat-page-size" data-size="' + szVal + '">' + sz + '</button>';
+      }).join('');
+
+      pagination =
+        '<div class="pagination-bar" style="margin-top:12px;padding:12px 2px 20px 2px">' +
+          '<div class="pagination-size-wrap" style="margin-top:0">' +
+            '<span class="pagination-size-label">Show per category:</span>' +
+            '<div class="pagination-size-pills">' + sizePills + '</div>' +
+          '</div>' +
+        '</div>';
+    } else if (filtered.length > 0) {
+      pagination = U.paginationBar({ page: page, totalPages: totalPages, pageSize: pageSize, prevAct: 'cat-prev-page', nextAct: 'cat-next-page', sizeAct: 'cat-change-page-size' });
+    }
 
     return quickBar + onsite + controls + content + pagination +
       '<div class="cat-cta">' +
@@ -432,19 +540,14 @@ App.Views.catering = (function () {
     return Views.head(ev, tab) + '<div class="catering-tab-pane' + animClass + '">' + body + '</div>';
   }
 
-  /* Robust Bidirectional Swipe Engine */
   function attachSwipeListeners(root) {
     var swipeRows = (root || document).querySelectorAll('.swipe-row-outer');
     for (var i = 0; i < swipeRows.length; i++) {
       (function (row) {
         var content = row.querySelector('.swipe-row-content');
         if (!content) return;
-        var startX = 0;
-        var startY = 0;
-        var baseOffset = 0;
-        var currentDeltaX = 0;
-        var isSwiping = false;
-        var isVerticalScroll = false;
+        var startX = 0, startY = 0, baseOffset = 0, currentDeltaX = 0;
+        var isSwiping = false, isVerticalScroll = false;
 
         row.addEventListener('touchstart', function (e) {
           if (!e.touches || !e.touches[0]) return;
@@ -478,9 +581,7 @@ App.Views.catering = (function () {
               isVerticalScroll = true;
               return;
             }
-            if (Math.abs(diffX) > 10) {
-              isSwiping = true;
-            }
+            if (Math.abs(diffX) > 10) isSwiping = true;
           }
 
           if (isSwiping) {
@@ -499,24 +600,17 @@ App.Views.catering = (function () {
             content.style.transform = '';
 
             if (baseOffset === 0) {
-              if (currentDeltaX < -35) {
-                content.classList.add('swiped');
-              } else {
-                content.classList.remove('swiped');
-              }
+              if (currentDeltaX < -35) content.classList.add('swiped');
+              else content.classList.remove('swiped');
             } else {
-              if (currentDeltaX > -45) {
-                content.classList.remove('swiped');
-              } else {
-                content.classList.add('swiped');
-              }
+              if (currentDeltaX > -45) content.classList.remove('swiped');
+              else content.classList.add('swiped');
             }
             isSwiping = false;
           } else {
             if (baseOffset === -76) {
-              var target = e.target;
+              var cur = e.target;
               var isInteractive = false;
-              var cur = target;
               while (cur && cur !== row) {
                 if (cur.tagName === 'BUTTON' || cur.tagName === 'INPUT' || (cur.dataset && cur.dataset.act)) {
                   isInteractive = true;
@@ -541,7 +635,6 @@ App.Views.catering = (function () {
     updateGlider(root || document);
     attachSwipeListeners(root || document);
 
-    // 1. Maintain Category Carousel Scroll Position
     var cChips = document.getElementById('catering-cat-chips') || (root && root.querySelector ? root.querySelector('.chips.filter-bar') : null);
     if (cChips) {
       if (chipsScrollLeft > 0) {
@@ -555,7 +648,6 @@ App.Views.catering = (function () {
       }, { passive: true });
     }
 
-    // 2. Search Input Listener
     var cSearch = document.getElementById('catering-search');
     if (cSearch) {
       cSearch.addEventListener('input', function () {
@@ -612,7 +704,7 @@ App.Views.catering = (function () {
       var nextMode = el ? el.getAttribute('data-mode') : 'cards';
       if (!nextMode || nextMode === viewMode) return;
       viewMode = nextMode;
-      viewModeSwitchAnim = true; // Animate only on mode switch
+      viewModeSwitchAnim = true;
       App.rerenderQuiet();
       return;
     }
@@ -643,16 +735,21 @@ App.Views.catering = (function () {
       App.rerenderQuiet();
       return;
     }
+    if (act === 'change-cat-page-size') {
+      var newCatSize = parseInt(el.getAttribute('data-size'), 10) || 5;
+      if (newCatSize !== catPageSize) {
+        catPageSize = newCatSize;
+        catPages = {};
+        App.rerenderQuiet();
+      }
+      return;
+    }
 
     /* 5. Filter Controls */
     if (act === 'filter-load-cat') {
       var chipsEl = el ? el.closest('.chips') : document.getElementById('catering-cat-chips');
-      if (chipsEl) {
-        chipsScrollLeft = chipsEl.scrollLeft;
-      }
-      if (!id) {
-        chipsScrollLeft = 0;
-      }
+      if (chipsEl) chipsScrollLeft = chipsEl.scrollLeft;
+      if (!id) chipsScrollLeft = 0;
       loadCat = id;
       page = 1;
       catPages = {};
@@ -681,37 +778,129 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* 6. Top Pagination */
-    if (act === 'top-prev-page') {
-      if (page > 1) {
-        page--;
-        App.rerenderQuiet();
-      }
+    /* 6. Stock Discrepancy Reconciliation Actions */
+    if (act === 'open-discrepancy-sheet') {
+      openStockDiscrepancyModal(ev, false);
       return;
     }
-    if (act === 'top-next-page') {
-      if (page < totalPages) {
-        page++;
+
+    if (act === 'disc-sync-single') {
+      var lineToSync = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === id) lineToSync = l; });
+      var itToSync = S.item(id);
+      if (lineToSync && itToSync) {
+        S.setStock(id, lineToSync.out);
+        U.toast('Commissary stock for "' + lineToSync.name + '" updated to ' + lineToSync.out + '.');
+      }
+      var proceedSingle = el.getAttribute('data-proceed') === 'true';
+      openStockDiscrepancyModal(ev, proceedSingle);
+      return;
+    }
+
+    if (act === 'disc-cap-single') {
+      var lineToCap = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === id) lineToCap = l; });
+      var itToCap = S.item(id);
+      var ownedCap = itToCap ? (itToCap.qty || 0) : 0;
+      if (lineToCap) {
+        lineToCap.out = ownedCap;
+        if (lineToCap.back > lineToCap.out) lineToCap.back = lineToCap.out;
+        ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
+        S.save();
+        U.toast('Van load for "' + lineToCap.name + '" capped to ' + ownedCap + '.');
+      }
+      var proceedCapSingle = el.getAttribute('data-proceed') === 'true';
+      openStockDiscrepancyModal(ev, proceedCapSingle);
+      return;
+    }
+
+    if (act === 'disc-borrow-single') {
+      var lineToBorrow = null;
+      (ev.lines || []).forEach(function (l) { if (l.itemId === id) lineToBorrow = l; });
+      var itToBorrow = S.item(id);
+      var ownedBorrow = itToBorrow ? (itToBorrow.qty || 0) : 0;
+      if (lineToBorrow && lineToBorrow.out > ownedBorrow) {
+        var surplusBorrow = lineToBorrow.out - ownedBorrow;
+        lineToBorrow.out = ownedBorrow;
+        S.addNotOurs(ev, lineToBorrow.name, surplusBorrow, 'Borrowed extra for ' + ev.name);
+        ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
+        S.save();
+        U.toast(surplusBorrow + ' pieces moved to Foreign/Borrowed.');
+      }
+      var proceedBorrowSingle = el.getAttribute('data-proceed') === 'true';
+      openStockDiscrepancyModal(ev, proceedBorrowSingle);
+      return;
+    }
+
+    if (act === 'disc-sync-all') {
+      var allShortages = getActiveShortages(ev);
+      allShortages.forEach(function (sh) {
+        S.setStock(sh.item.id, sh.line.out);
+      });
+      onlyWarnings = false;
+      U.toast('All commissary stock counts updated to match van.');
+      if (el.getAttribute('data-proceed') === 'true') {
+        S.markLoaded(ev);
+        if (Nav) Nav.clear();
+        U.closeSheet();
+        tab = 'back';
+        page = 1;
+        catPages = {};
+        chipsScrollLeft = 0;
+        App.rerenderQuiet();
+        U.toast('Van locked and departed.');
+      } else {
+        U.closeSheet();
         App.rerenderQuiet();
       }
       return;
     }
 
-    /* 7. Bottom Pagination */
-    if (act === 'cat-prev-page') {
-      if (page > 1) {
-        page--;
+    if (act === 'disc-cap-all') {
+      ev.lines.forEach(function (l) {
+        var it = S.item(l.itemId);
+        var owned = it ? (it.qty || 0) : 0;
+        if (l.out > owned) {
+          l.out = owned;
+          if (l.back > l.out) l.back = l.out;
+        }
+      });
+      ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
+      onlyWarnings = false;
+      S.save();
+      U.toast('Counts capped to commissary stock.');
+      if (el.getAttribute('data-proceed') === 'true') {
+        S.markLoaded(ev);
+        if (Nav) Nav.clear();
+        U.closeSheet();
+        tab = 'back';
+        page = 1;
+        catPages = {};
+        chipsScrollLeft = 0;
         App.rerenderQuiet();
-        scrollToListTop();
+        U.toast('Van locked and departed.');
+      } else {
+        U.closeSheet();
+        App.rerenderQuiet();
       }
       return;
     }
+
+    /* 7. Top & Bottom Pagination */
+    if (act === 'top-prev-page') {
+      if (page > 1) { page--; App.rerenderQuiet(); }
+      return;
+    }
+    if (act === 'top-next-page') {
+      if (page < totalPages) { page++; App.rerenderQuiet(); }
+      return;
+    }
+    if (act === 'cat-prev-page') {
+      if (page > 1) { page--; App.rerenderQuiet(); scrollToListTop(); }
+      return;
+    }
     if (act === 'cat-next-page') {
-      if (page < totalPages) {
-        page++;
-        App.rerenderQuiet();
-        scrollToListTop();
-      }
+      if (page < totalPages) { page++; App.rerenderQuiet(); scrollToListTop(); }
       return;
     }
     if (act === 'cat-change-page-size') {
@@ -946,8 +1135,15 @@ App.Views.catering = (function () {
       });
       return;
     }
+
+    /* 11. Lock In Van with Discrepancy Gatekeeper */
     if (act === 'mark-loaded') {
       if (!ev.lines.length) { U.toast('Stage gear before locking.'); return; }
+      var shortagesCheck = getActiveShortages(ev);
+      if (shortagesCheck.length > 0) {
+        openStockDiscrepancyModal(ev, true);
+        return;
+      }
       S.markLoaded(ev);
       if (Nav) Nav.clear();
       tab = 'back';
@@ -959,6 +1155,7 @@ App.Views.catering = (function () {
       U.toast('Van locked and departed.');
       return;
     }
+
     if (act === 'cancel-event') {
       U.confirm('Cancel event', 'Discard the active load-out completely?', 'Cancel event', function () {
         S.removeEvent(ev.id);
@@ -973,7 +1170,7 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* 11. Close Event */
+    /* 12. Close Event */
     if (act === 'close-event') {
       if (Nav) Nav.clear();
       var t = S.tally(ev);
@@ -1023,6 +1220,7 @@ App.Views.catering = (function () {
     openQtyModal: function (id, r) { if (Nav) Nav.clear(); return Modals.openQtyModal(id, r, false); },
     openPackReturnModal: function (id) { if (Nav) Nav.clear(); return Modals.openPackReturnModal(id, false); },
     openPresetOptionsSheet: function (ev) { if (Nav) Nav.clear(); return Kits.openPresetOptionsSheet(ev, false); },
-    openKitPickerSheet: function (ev, s) { if (Nav) Nav.clear(); return Kits.openKitPickerSheet(ev, s, false); }
+    openKitPickerSheet: function (ev, s) { if (Nav) Nav.clear(); return Kits.openKitPickerSheet(ev, s, false); },
+    openStockDiscrepancyModal: function (ev, p) { return openStockDiscrepancyModal(ev, p); }
   };
 })();

@@ -1,12 +1,12 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 3: Views (js/views/catering/catering-views.js)
    - Zero emojis: 100% clean Lucide/Feather vector SVG iconography
-   - Removed re-render animation wrappers (Eliminates quantity change flashing)
+   - Mirrored with Inventory: Universal items-per-category pagination (2, 3, 5, 10, All)
+   - Uncategorised category accordion support (matches inventory.js)
+   - Accurate category item count badges on accordion headers
    - Vector warning badges for stock shortages in card, compact, and grid views
    - Adjustable 2, 3, or 4 Column E-Commerce Grid with dedicated density bar
    - Independent Per-Category Pagination inside Collapsible Accordions
-   - Multi-line word-wrap on item names and kit presets (no truncated ellipses)
-   - Category icons matching Commissary inventory
    - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 window.App = window.App || {};
@@ -83,9 +83,6 @@ App.Views.Catering.Views = (function () {
         '<p class="muted mt4">' + U.esc(last.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(last.date)) + '</p></div>' : '');
   }
 
-  /* ------------------------------------------------------------------
-     Shared builders (UI only — every data-act / data-id below is unchanged)
-     ------------------------------------------------------------------ */
   function chev() { return U.icon('chevronRight', 'lr-disc'); }
 
   function thumbHtml(l, photoKey, cat, extraCls) {
@@ -104,7 +101,6 @@ App.Views.Catering.Views = (function () {
     '</div>';
   }
 
-  /* brand/marker tag + a Supply tag (skipped when the marker already says "Supply") */
   function tagsFor(l) {
     var label = l.brand || l.tagLabel || 'Loreto';
     var dupe = String(label).toLowerCase() === 'supply';
@@ -126,7 +122,6 @@ App.Views.Catering.Views = (function () {
     '</div>';
   }
 
-  /* Event header card: identity, status, counts and the tab switch live in ONE block */
   function head(ev, tab) {
     var t = S.tally(ev);
     var staging = ev.status === 'staging';
@@ -158,12 +153,10 @@ App.Views.Catering.Views = (function () {
     '</div>';
   }
 
-  /* kept for compatibility — the tab switch now renders inside head() */
   function segs(ev, tab) { return ''; }
 
   /* ------------------------------------------------------------------
      LOAD-OUT · Card view
-     Tap map:  photo -> enlarge | name/tags -> item details | stepper -> count | bin / swipe -> remove
      ------------------------------------------------------------------ */
   function renderCardsView(lines, isOut, evPresetId) {
     return lines.map(function (l) {
@@ -172,7 +165,6 @@ App.Views.Catering.Views = (function () {
       var cat = it ? S.category(it.categoryId) : null;
       var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
       var id = l.itemId;
-
       var tags = tagsFor(l);
 
       var status1 = stat.isExceeding
@@ -203,61 +195,118 @@ App.Views.Catering.Views = (function () {
   }
 
   /* ------------------------------------------------------------------
-     Category accordion wrapper (shared by load + pack compact views)
+     Category accordion wrapper (Mirrored with Inventory Compact View)
      ------------------------------------------------------------------ */
-  function accordions(lines, openAccordions, catPages, rowFn) {
+  function accordions(lines, openAccordions, catPages, catPageSize, rowFn) {
     var cats = S.categories();
     var groups = {};
+    var uncat = [];
+
     lines.forEach(function (l) {
       var it = S.item(l.itemId);
       var cId = it ? it.categoryId : '';
-      if (cId) { if (!groups[cId]) groups[cId] = []; groups[cId].push(l); }
+      if (cId) {
+        if (!groups[cId]) groups[cId] = [];
+        groups[cId].push(l);
+      } else {
+        uncat.push(l);
+      }
     });
 
-    var catPageSize = 6;
+    var limit = parseInt(catPageSize, 10) || 5;
+    var isAll = limit >= 999;
     var html = '';
+
     cats.forEach(function (c) {
       var cLines = groups[c.id];
       if (!cLines || !cLines.length) return;
       var isOpen = openAccordions[c.id] !== false;
 
       var cPage = (catPages && catPages[c.id]) || 1;
-      var cTotalPages = Math.ceil(cLines.length / catPageSize) || 1;
+      var cTotalPages = isAll ? 1 : (Math.ceil(cLines.length / limit) || 1);
       if (cPage > cTotalPages) cPage = cTotalPages;
       if (cPage < 1) cPage = 1;
 
-      var startIdx = (cPage - 1) * catPageSize;
-      var rows = cLines.slice(startIdx, startIdx + catPageSize).map(rowFn).join('');
+      var startIdx = isAll ? 0 : (cPage - 1) * limit;
+      var paginatedCLines = isAll ? cLines : cLines.slice(startIdx, startIdx + limit);
+      var rows = paginatedCLines.map(rowFn).join('');
 
-      var pagHtml = U.catAccordionPagination({
-        catId: c.id, page: cPage, totalPages: cTotalPages, totalItems: cLines.length,
-        prevAct: 'cat-acc-prev-page', nextAct: 'cat-acc-next-page'
-      });
+      var pagHtml = (!isAll) ? U.catAccordionPagination({
+        catId: c.id,
+        page: cPage,
+        totalPages: cTotalPages,
+        totalItems: cLines.length,
+        alwaysShow: true,
+        prevAct: 'cat-acc-prev-page',
+        nextAct: 'cat-acc-next-page'
+      }) : '';
 
       html += '<div class="cat-accordion ' + (isOpen ? 'open' : '') + '" id="cat-acc-' + c.id + '">' +
         '<button type="button" class="cat-accordion-head" data-act="toggle-cat-acc" data-id="' + c.id + '">' +
-          '<span class="cat-accordion-title">' + U.icon(c.icon || 'plate') + '<span>' + U.esc(c.name) + '</span><span class="cat-accordion-badge">' + cLines.length + '</span></span>' +
+          '<span class="cat-accordion-title">' +
+            U.icon(c.icon || 'plate') +
+            '<span>' + U.esc(c.name) + '</span>' +
+            '<span class="cat-accordion-badge">' + cLines.length + '</span>' +
+          '</span>' +
           U.icon('chevronDown', 'cat-accordion-chevron') +
         '</button>' +
         '<div class="cat-accordion-body">' + rows + pagHtml + '</div>' +
       '</div>';
     });
+
+    if (uncat.length) {
+      var isOpenUncat = openAccordions['uncat'] !== false;
+      var uncatPage = (catPages && catPages['uncat']) || 1;
+      var uncatTotalPages = isAll ? 1 : (Math.ceil(uncat.length / limit) || 1);
+      if (uncatPage > uncatTotalPages) uncatPage = uncatTotalPages;
+      if (uncatPage < 1) uncatPage = 1;
+
+      var uncatStart = isAll ? 0 : (uncatPage - 1) * limit;
+      var paginatedUncat = isAll ? uncat : uncat.slice(uncatStart, uncatStart + limit);
+      var uncatRows = paginatedUncat.map(rowFn).join('');
+
+      var uncatPagHtml = (!isAll) ? U.catAccordionPagination({
+        catId: 'uncat',
+        page: uncatPage,
+        totalPages: uncatTotalPages,
+        totalItems: uncat.length,
+        alwaysShow: true,
+        prevAct: 'cat-acc-prev-page',
+        nextAct: 'cat-acc-next-page'
+      }) : '';
+
+      html += '<div class="cat-accordion ' + (isOpenUncat ? 'open' : '') + '" id="cat-acc-uncat">' +
+        '<button type="button" class="cat-accordion-head" data-act="toggle-cat-acc" data-id="uncat">' +
+          '<span class="cat-accordion-title">' +
+            U.icon('grid') +
+            '<span>Uncategorised</span>' +
+            '<span class="cat-accordion-badge">' + uncat.length + '</span>' +
+          '</span>' +
+          U.icon('chevronDown', 'cat-accordion-chevron') +
+        '</button>' +
+        '<div class="cat-accordion-body">' + uncatRows + uncatPagHtml + '</div>' +
+      '</div>';
+    }
+
     return html;
   }
 
-  /* LOAD-OUT · Compact view (tap name -> quantity sheet, stepper -> +/-1) */
-  function renderCompactView(lines, isOut, evPresetId, openAccordions, catPages) {
-    return accordions(lines, openAccordions, catPages, function (l) {
+  /* LOAD-OUT · Compact view */
+  function renderCompactView(lines, isOut, evPresetId, openAccordions, catPages, catPageSize) {
+    return accordions(lines, openAccordions, catPages, catPageSize, function (l) {
       var stat = getItemStockStatus(l.itemId, l.out, evPresetId);
       var id = l.itemId;
+      var brandLabel = l.brand || l.tagLabel || 'Loreto';
+
       return '<div class="compact-item-row' + (stat.isExceeding ? ' short' : '') + '">' +
         '<div class="compact-item-info" data-act="open-qty-modal" data-id="' + id + '">' +
-          '<div class="compact-item-name">' + U.esc(l.name) + chev() + '</div>' +
+          '<div class="compact-item-name truncate">' + U.esc(l.name) + '</div>' +
           '<div class="compact-item-meta">' +
-            U.tag(l.brand || l.tagLabel || 'Loreto', l.tagColor) +
+            U.tag(brandLabel, l.tagColor) +
+            (l.isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
             (stat.isExceeding
-              ? '<span class="cm-stock is-warn">' + U.icon('alertTriangle', 'lr-status-ico') + 'Only ' + stat.owned + ' in stock</span>'
-              : '<span class="cm-stock">Stock ' + stat.owned + '</span>') +
+              ? '<span class="cm-stock is-warn ml4">' + U.icon('alertTriangle', 'lr-status-ico') + 'Only ' + stat.owned + ' in stock</span>'
+              : '<span class="cm-stock ml4">Stock ' + stat.owned + '</span>') +
           '</div>' +
         '</div>' +
         stepper('out-minus', 'out-plus', '', id, l.out, true) +
@@ -265,7 +314,7 @@ App.Views.Catering.Views = (function () {
     });
   }
 
-  /* LOAD-OUT · Grid view (tap tile -> quantity sheet) */
+  /* LOAD-OUT · Grid view */
   function renderGridView(lines, evPresetId, gridCols) {
     var cols = parseInt(gridCols, 10) || 2;
     var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-grid-cols') : '';
@@ -296,7 +345,7 @@ App.Views.Catering.Views = (function () {
   }
 
   /* ------------------------------------------------------------------
-     PACK-DOWN · result text used by all three pack views
+     PACK-DOWN · result text
      ------------------------------------------------------------------ */
   function packResult(l) {
     var short = l.out - l.back;
@@ -340,23 +389,29 @@ App.Views.Catering.Views = (function () {
     }).join('');
   }
 
-  /* PACK-DOWN · Compact view (tap name -> returns sheet) */
-  function renderPackCompactView(lines, openAccordions, catPages) {
-    return accordions(lines, openAccordions, catPages, function (l) {
+  /* PACK-DOWN · Compact view */
+  function renderPackCompactView(lines, openAccordions, catPages, catPageSize) {
+    return accordions(lines, openAccordions, catPages, catPageSize, function (l) {
       var isConsumable = !!l.isConsumable;
       var short = l.out - l.back;
       var id = l.itemId;
+      var brandLabel = l.brand || l.tagLabel || 'Loreto';
+
       return '<div class="compact-item-row ' + (isConsumable ? 'done' : (short === 0 ? 'done' : 'short')) + '">' +
         '<div class="compact-item-info" data-act="open-pack-modal" data-id="' + id + '">' +
-          '<div class="compact-item-name">' + U.esc(l.name) + chev() + '</div>' +
-          '<div class="compact-item-meta">' + packResult(l) + '</div>' +
+          '<div class="compact-item-name truncate">' + U.esc(l.name) + '</div>' +
+          '<div class="compact-item-meta">' +
+            U.tag(brandLabel, l.tagColor) +
+            (isConsumable ? '<span class="tag tag-yellow ml4" style="font-size:9.5px">Supply</span>' : '') +
+            '<span class="ml4">' + packResult(l) + '</span>' +
+          '</div>' +
         '</div>' +
         stepper('back-minus', 'back-plus', '', id, l.back, true) +
       '</div>';
     });
   }
 
-  /* PACK-DOWN · Grid view (tap tile -> returns sheet) */
+  /* PACK-DOWN · Grid view */
   function renderPackGridView(lines, gridCols) {
     var cols = parseInt(gridCols, 10) || 2;
     var densityBar = U.gridDensityBar ? U.gridDensityBar(cols, 'set-grid-cols') : '';

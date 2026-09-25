@@ -1,6 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — File 1: Modals (js/views/catering/catering-modals.js)
    - Zero emojis: Clean Lucide/Feather vector SVG iconography
+   - In-modal Stock Discrepancy Resolution: 1-tap Commissary Stock Sync or Cap
    - Direct link to Shelf/Inventory: 1-tap jump to item audit & editing
    - Enlarge Photo Lightbox with zoom badge & high-resolution preview
    - Item Details Modal: Current Commissary Stock prominently highlighted
@@ -78,7 +79,7 @@ App.Views.Catering.Modals = (function () {
     U.openLightbox(it.photoId, it.name, metaHtml);
   }
 
-  /* Item Details Modal with Direct Shelf Link & Lightbox Enlarge */
+  /* Item Details Modal with Direct Shelf Link & Stock Reconciliation */
   function openItemDetail(itemId, isBack) {
     var it = S.item(itemId);
     if (!it) return;
@@ -107,7 +108,7 @@ App.Views.Catering.Modals = (function () {
     var actionBtnHtml = '';
 
     if (isStaging) {
-      // 1. VAN STAGING / LOADING CONTEXT
+      // 1. VAN STAGING CONTEXT
       var stagedQty = line ? (line.out || 0) : 0;
       var isExceeding = stagedQty > stockQty;
 
@@ -129,11 +130,19 @@ App.Views.Catering.Modals = (function () {
 
       if (isExceeding) {
         statusBanner =
-          '<div class="card mb12" style="background:var(--alert-tint);border-left:4px solid var(--alert);padding:9px 11px">' +
-            '<div class="row" style="color:var(--alert);font-size:12px;font-weight:700">' +
-              U.icon('alertTriangle', 'mr4') + 'Exceeds stock by ' + (stagedQty - stockQty) + ' ' + U.esc(it.unit) +
+          '<div class="card mb12" style="background:#FFFAF8;border:1px solid rgba(214,57,32,0.25);border-left:4px solid var(--alert);padding:9px 10px">' +
+            '<div class="row row-between" style="color:var(--alert);font-size:12px;font-weight:700">' +
+              '<span>' + U.icon('alertTriangle', 'mr4') + 'Exceeds stock by ' + (stagedQty - stockQty) + ' ' + U.esc(it.unit) + '</span>' +
             '</div>' +
-            '<p class="muted mt2" style="font-size:11px;color:var(--alert)">Van count is higher than commissary stock.</p>' +
+            '<p class="muted mt2 mb8" style="font-size:11px;color:var(--alert)">Staged count is higher than commissary shelf stock.</p>' +
+            '<div class="row" style="margin:-2px">' +
+              '<button type="button" class="btn btn-primary btn-sm grow m2" data-act="detail-sync-stock" data-id="' + it.id + '" style="min-height:30px;font-size:11px;padding:2px 8px">' +
+                U.icon('plus', 'mr4') + 'Update Stock to ' + stagedQty +
+              '</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm grow m2" data-act="detail-cap-staged" data-id="' + it.id + '" style="min-height:30px;font-size:11px;padding:2px 8px">' +
+                'Cap van to ' + stockQty +
+              '</button>' +
+            '</div>' +
           '</div>';
       } else if (stagedQty > 0) {
         var remainingShelf = stockQty - stagedQty;
@@ -162,7 +171,7 @@ App.Views.Catering.Modals = (function () {
       }
 
     } else {
-      // 2. LIVE ON LOCATION / PACK DOWN CONTEXT
+      // 2. LIVE ON LOCATION CONTEXT
       var outQty = line ? (line.out || 0) : 0;
       var backQty = line ? (line.back || 0) : 0;
       var missingQty = isConsumable ? 0 : Math.max(0, outQty - backQty);
@@ -235,10 +244,10 @@ App.Views.Catering.Modals = (function () {
         '<h3 style="font-family:Iowan Old Style,Georgia,serif;font-size:17.5px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' +
           U.esc(it.name) +
         '</h3>' +
-        '<div class="row" style="justify-content:center;margin-top:6px;flex-wrap:wrap;gap:4px">' +
-          U.tag(brandLabel, it.tagColor) +
-          (isConsumable ? '<span class="tag tag-yellow" style="font-size:9.5px">Supply</span>' : '') +
-          (cat ? '<span class="tag tag-white" style="font-size:9.5px">' + U.esc(cat.name) + '</span>' : '') +
+        '<div class="row" style="justify-content:center;margin-top:6px;flex-wrap:wrap;margin:-2px">' +
+          '<span class="m2">' + U.tag(brandLabel, it.tagColor) + '</span>' +
+          (isConsumable ? '<span class="tag tag-yellow m2" style="font-size:9.5px">Supply</span>' : '') +
+          (cat ? '<span class="tag tag-white m2" style="font-size:9.5px">' + U.esc(cat.name) + '</span>' : '') +
         '</div>' +
         (photoKey ? '<button type="button" class="btn btn-ghost btn-sm mt8" data-act="thumb-click" data-id="' + it.id + '" style="width:auto;min-height:28px;padding:2px 10px;font-size:11px;margin:8px auto 0 auto">' + U.icon('zoom', 'mr4') + 'Enlarge Photo</button>' : '') +
       '</div>' +
@@ -251,7 +260,7 @@ App.Views.Catering.Modals = (function () {
         (it.note ? '<div class="mt8 pt8" style="border-top:1px solid var(--line)"><span class="muted">Notes:</span><p style="margin-top:2px;font-size:12.5px">' + U.esc(it.note) + '</p></div>' : '') +
       '</div>' +
 
-      /* DIRECT LINK TO SHELF (INVENTORY AUDIT & DETAIL) */
+      /* DIRECT LINK TO INVENTORY SHELF */
       '<button type="button" class="btn btn-ghost mb8" data-act="goto-inventory-item" data-id="' + it.id + '" style="border-color:var(--line-strong);background:var(--sand-soft)">' +
         U.icon('package', 'mr4') + ' View on Shelf (Audit & Edit)' +
       '</button>' +
@@ -284,9 +293,21 @@ App.Views.Catering.Modals = (function () {
     var initialInputVal = stagedQty > 0 ? stagedQty : Math.min(1, maxStock);
     var photoKey = it.photoId ? (it.photoId + '-t') : '';
     var cat = S.category(it.categoryId);
+    var isOverStock = stagedQty > maxStock;
 
     var cancelAction = Nav.hasBack() ? 'modal-back' : (activeQtyModalReturnToChecklist ? 'cancel-to-chk' : 'sheet-close');
     var cancelLabel = (Nav.hasBack() || activeQtyModalReturnToChecklist) ? '&larr; Back' : 'Cancel';
+
+    var shortageNotice = isOverStock ? (
+      '<div class="card mb8" style="background:#FFFAF8;border:1px solid rgba(214,57,32,0.25);border-left:3px solid var(--alert);padding:8px 10px;text-align:left">' +
+        '<div class="row row-between" style="font-size:11.5px;color:var(--alert);font-weight:700">' +
+          '<span>' + U.icon('alertTriangle', 'mr4') + 'Staged ' + (stagedQty - maxStock) + ' over stock</span>' +
+          '<button type="button" class="btn btn-primary btn-sm" data-act="modal-sync-stock" data-id="' + it.id + '" data-qty="' + stagedQty + '" style="min-height:26px;font-size:10.5px;padding:0 8px;width:auto">' +
+            'Update Stock to ' + stagedQty +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ) : '';
 
     var html =
       '<div class="quick-qty-modal">' +
@@ -302,6 +323,7 @@ App.Views.Catering.Modals = (function () {
             '</div>' +
           '</div>' +
         '</div>' +
+        shortageNotice +
         '<div class="card mb12" style="text-align:center;padding:14px 10px">' +
           '<label style="font-size:11.5px;font-weight:700;color:var(--timber-soft);text-transform:uppercase;display:block;margin-bottom:8px">Pieces Staged in Van</label>' +
           '<div class="row" style="justify-content:center;align-items:center">' +
@@ -467,7 +489,44 @@ App.Views.Catering.Modals = (function () {
     if (act === 'export-manifest-text') { openTextManifest(ev); return true; }
     if (act === 'open-staff-picker') { openStaffPicker(); return true; }
 
-    /* 1-Tap Jump to Shelf (Inventory Audit & Editing) */
+    /* Direct 1-Tap Stock Sync & Cap Actions inside Modal */
+    if (act === 'detail-sync-stock') {
+      var itSync = S.item(id);
+      var lineSync = null;
+      if (ev && ev.lines) {
+        ev.lines.forEach(function (l) { if (l.itemId === id) lineSync = l; });
+      }
+      if (itSync && lineSync) {
+        S.setStock(id, lineSync.out);
+        U.toast('Stock updated to ' + lineSync.out + ' in commissary.');
+        App.rerenderQuiet();
+        openItemDetail(id, true);
+      }
+      return true;
+    }
+
+    if (act === 'detail-cap-staged') {
+      var itCap = S.item(id);
+      var ownedQty = itCap ? (itCap.qty || 0) : 0;
+      S.setOut(ev, id, ownedQty);
+      U.toast('Van load capped to ' + ownedQty + '.');
+      App.rerenderQuiet();
+      openItemDetail(id, true);
+      return true;
+    }
+
+    if (act === 'modal-sync-stock') {
+      var targetQty = parseInt(el.getAttribute('data-qty'), 10) || 0;
+      if (targetQty > 0) {
+        S.setStock(id, targetQty);
+        U.toast('Commissary stock updated to ' + targetQty + '.');
+        App.rerenderQuiet();
+        openQtyModal(id, activeQtyModalReturnToChecklist, true);
+      }
+      return true;
+    }
+
+    /* 1-Tap Jump to Shelf */
     if (act === 'goto-inventory-item') {
       if (Nav) Nav.clear();
       U.closeSheet();
@@ -500,6 +559,14 @@ App.Views.Catering.Modals = (function () {
       var finalQty = Math.max(0, parseInt(saveInput ? saveInput.value : 0, 10) || 0);
       S.setOut(ev, id, finalQty);
 
+      var itObj = S.item(id);
+      var ownedNow = itObj ? (itObj.qty || 0) : 0;
+      if (finalQty > ownedNow) {
+        U.toast('Staged ' + finalQty + ' (' + (finalQty - ownedNow) + ' over commissary stock).');
+      } else {
+        U.toast(finalQty > 0 ? 'Item updated in van.' : 'Item removed from van.');
+      }
+
       if (Nav.hasBack()) {
         Nav.back();
       } else if (activeQtyModalReturnToChecklist && App.Views.Catering.Kits) {
@@ -509,7 +576,6 @@ App.Views.Catering.Modals = (function () {
         U.closeSheet();
         App.rerenderQuiet();
       }
-      U.toast(finalQty > 0 ? 'Item updated in van.' : 'Item removed from van.');
       return true;
     }
     if (act === 'modal-qty-remove') {
