@@ -2,6 +2,7 @@
    Loreto's Catering Tracker — Views: Settings (js/views/settings.js)
    - Master Configuration Hub: Categories, Kit Presets, Staff Directory
    - Dedicated Staff Directory Sheet with Live Search & Role Filters
+   - In-place Gear Kit Preset Management (zero page redirect)
    - Staff Profile Modal with Photo Upload, Call Action, & Gig History
    - Offline JSON backup export & restore with IndexedDB photos
    - Dynamic Service Worker version display & Update Center
@@ -400,13 +401,16 @@ App.Views.settings = (function () {
       return;
     }
 
+    /* DIRECT PRESET MANAGEMENT IN SETTINGS (NO PAGE REDIRECT) */
     if (act === 'manage-presets') {
-      App.go('catering');
-      setTimeout(function () {
-        if (App.Views.catering && App.Views.catering.openPresetManagerSheet) {
-          App.Views.catering.openPresetManagerSheet();
-        }
-      }, 70);
+      if (App.Views.Catering && App.Views.Catering.Nav) {
+        App.Views.Catering.Nav.clear();
+      }
+      if (App.Views.Catering && App.Views.Catering.Kits && App.Views.Catering.Kits.openPresetManagerSheet) {
+        App.Views.Catering.Kits.openPresetManagerSheet(false);
+      } else if (App.Views.catering && App.Views.catering.openPresetManagerSheet) {
+        App.Views.catering.openPresetManagerSheet();
+      }
       return;
     }
 

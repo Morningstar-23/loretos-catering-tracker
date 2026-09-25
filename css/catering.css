@@ -7,6 +7,7 @@
    - Stock Discrepancy Reconciliation Modal & Alert Strip Layouts
    - Bi-directional Swipe-to-Delete List Row Engine
    - Responsive E-Commerce Grid
+   - Kit Preset Editor: Animated Sliding Pill Glider & Unclipped Two-Row Cards
    - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 
@@ -1104,3 +1105,233 @@
 /* Utility helpers for modal grids on iOS 12 */
 .m2 { margin: 2px !important; }
 .grow { flex: 1 1 0% !important; min-width: 0 !important; }
+
+/* ==========================================================================
+   Kit Preset Editor: Sliding Pill Glider & Unclipped Two-Row Cards
+   ========================================================================== */
+#p-seg-tabs.seg.seg-animated {
+  position: relative;
+  overflow: hidden;
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  padding: 3px;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+#p-seg-tabs .seg-glider {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  background: var(--sand-card, #FFFFFF);
+  border-radius: 9px;
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.12), 0 0 0 1px rgba(33, 29, 26, 0.04);
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform, width;
+}
+#p-seg-tabs button {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0%;
+  min-height: 38px;
+  border-radius: 9px;
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--timber-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.18s ease;
+}
+#p-seg-tabs button.on {
+  color: var(--inasal-orange) !important;
+  font-weight: 700;
+}
+
+#p-tab-viewport {
+  min-height: 220px;
+}
+
+/* Preset Cards (Unclipped Two-Row Layout) */
+.preset-item-card {
+  padding: 10px 11px;
+  margin-bottom: 8px;
+  background: var(--sand-card, #FFFFFF);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-ctl, 12px);
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+.preset-item-card.done {
+  border-left: 3.5px solid var(--foliage);
+  background: #FCFEFD;
+}
+
+/* Top Row: Full Title + Category Sub + Top-Right Trash/Status */
+.preset-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+.preset-card-thumb {
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  border-radius: 9px !important;
+  margin-right: 9px !important;
+}
+.preset-item-title {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--timber-ink);
+  line-height: 1.25;
+  word-break: break-word;
+  white-space: normal;
+  letter-spacing: -0.01em;
+}
+.preset-cat-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--timber-soft);
+  margin-top: 2px;
+}
+
+/* Discreet Top-Right Trash Button */
+.preset-trash-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  margin: -2px -2px 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--timber-soft);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.14s var(--ease-spring);
+}
+.preset-trash-btn::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: -4px;
+  right: -4px;
+}
+.preset-trash-btn .icon {
+  width: 16px;
+  height: 16px;
+}
+.preset-trash-btn:active {
+  color: var(--alert);
+  background: var(--alert-tint);
+  transform: scale(0.90);
+}
+
+/* Bottom Row: Tags + Stock (Left) and Stepper / Add CTA (Right) */
+.preset-item-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.preset-meta-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-right: 8px;
+}
+.preset-stock-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--timber-soft);
+  background: var(--sand-soft);
+  border: 1px solid var(--line);
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.preset-stock-pill.is-empty {
+  color: var(--alert);
+  border-color: rgba(214, 57, 32, 0.3);
+  background: var(--alert-tint);
+}
+
+/* Stepper inside preset cards */
+.preset-card-stepper {
+  flex-shrink: 0;
+  transform: none;
+}
+.preset-card-stepper .step-btn {
+  width: 36px;
+  height: 34px;
+}
+.preset-card-stepper .step-num {
+  width: 38px;
+  height: 34px;
+  font-size: 15px;
+}
+
+/* Add to Kit CTA button inside catalog */
+.preset-add-btn {
+  width: auto !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 11.5px !important;
+  flex-shrink: 0;
+  border-radius: var(--r-pill) !important;
+}
+
+/* Catalog Search and Scope Filters */
+.preset-catalog-tab .search {
+  margin-bottom: 6px;
+}
+.preset-catalog-tab .search .input {
+  min-height: 42px;
+  font-size: 14px;
+  padding-left: 36px;
+}
+.preset-catalog-tab .search-icon {
+  top: 13px;
+  left: 12px;
+}
+.preset-catalog-tab .chips {
+  padding-top: 2px;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.preset-catalog-tab .chip {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 11.5px;
+}
+.btn-ghost.on {
+  background: var(--inasal-soft) !important;
+  color: var(--inasal-dark) !important;
+  border-color: var(--inasal-orange) !important;
+  font-weight: 700;
+}
