@@ -2,11 +2,13 @@
    Loreto's Catering Tracker — File 3: Views (js/views/catering/catering-views.js)
    - Zero emojis: 100% clean Lucide/Feather vector SVG iconography
    - Mirrored with Inventory: Universal items-per-category pagination (2, 3, 5, 10, All)
+   - Dynamic 3-Way Discrepancy Badges: Broken, Left at Venue, and Missing/Lost
    - Uncategorised category accordion support (matches inventory.js)
    - Accurate category item count badges on accordion headers
    - Vector warning badges for stock shortages in card, compact, and grid views
    - Adjustable 2, 3, or 4 Column E-Commerce Grid with dedicated density bar
    - Independent Per-Category Pagination inside Collapsible Accordions
+   - Foreign & Borrowed Cards with Uncramped Typography, Lightbox & Quick Picture
    - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 window.App = window.App || {};
@@ -125,8 +127,15 @@ App.Views.Catering.Views = (function () {
   function head(ev, tab) {
     var t = S.tally(ev);
     var staging = ev.status === 'staging';
+
+    var issues = [];
+    if (t.broken > 0) issues.push(t.broken + ' broken');
+    if (t.leftVenue > 0) issues.push(t.leftVenue + ' at venue');
+    if (t.missing > 0) issues.push(t.missing + ' missing');
+
     var meterSub = t.durableOut > 0
-      ? t.durableBack + ' of ' + t.durableOut + ' gear back (' + t.pct + '%)' + (t.missing ? ' &middot; <strong class="cat-warn-text">' + t.missing + ' missing</strong>' : ' &middot; all accounted for')
+      ? t.durableBack + ' of ' + t.durableOut + ' gear back (' + t.pct + '%)' +
+        (issues.length ? ' &middot; <strong class="cat-warn-text">' + issues.join(', ') + '</strong>' : ' &middot; all accounted for')
       : t.back + ' of ' + t.out + ' pieces back';
 
     var pill = '<span class="event-status-pill ' + (staging ? 'staging' : 'live') + '"><span class="status-dot"></span>' + (staging ? 'Staging' : 'Out on location') + '</span>';
@@ -345,7 +354,7 @@ App.Views.Catering.Views = (function () {
   }
 
   /* ------------------------------------------------------------------
-     PACK-DOWN · result text
+     PACK-DOWN · result text (Itemized Breakdown)
      ------------------------------------------------------------------ */
   function packResult(l) {
     var short = l.out - l.back;
@@ -354,9 +363,21 @@ App.Views.Catering.Views = (function () {
         ? '<span class="lr-result ok">' + U.icon('check', 'lr-status-ico') + 'All ' + l.out + ' back</span>'
         : '<span class="lr-result soft">' + l.back + '/' + l.out + ' back &middot; ' + short + ' used</span>';
     }
-    return short === 0
-      ? '<span class="lr-result ok">' + U.icon('check', 'lr-status-ico') + 'All ' + l.out + ' back</span>'
-      : '<span class="lr-result is-warn">' + U.icon('alertTriangle', 'lr-status-ico') + short + ' missing &middot; ' + l.back + '/' + l.out + ' back</span>';
+    if (short === 0) {
+      return '<span class="lr-result ok">' + U.icon('check', 'lr-status-ico') + 'All ' + l.out + ' back intact</span>';
+    }
+
+    var brk = l.broken || 0;
+    var lv = l.leftVenue || 0;
+    var mis = (l.missing !== undefined) ? l.missing : Math.max(0, short - brk - lv);
+
+    var parts = [];
+    if (brk > 0) parts.push(brk + ' broken');
+    if (lv > 0) parts.push(lv + ' at venue');
+    if (mis > 0) parts.push(mis + ' missing');
+
+    var breakdownText = parts.length ? ' (' + parts.join(', ') + ')' : '';
+    return '<span class="lr-result is-warn">' + U.icon('alertTriangle', 'lr-status-ico') + l.back + '/' + l.out + ' back' + U.esc(breakdownText) + '</span>';
   }
 
   /* PACK-DOWN · Card view */
@@ -372,7 +393,7 @@ App.Views.Catering.Views = (function () {
       return '<div class="pack-row lr-card ' + (isConsumable ? 'done' : (short === 0 ? 'done' : 'short')) + '" id="row-' + id + '">' +
         '<div class="lr-main">' +
           thumbHtml(l, photoKey, cat) +
-          '<div class="lr-info pack-item-clickable" data-act="inspect-item" data-id="' + id + '">' +
+          '<div class="lr-info pack-item-clickable" data-act="open-pack-modal" data-id="' + id + '">' +
             '<span class="lr-name">' + U.esc(l.name) + chev() + '</span>' +
             '<span class="lr-tags">' + tagsFor(l) + '</span>' +
             '<span class="lr-resultline">' + packResult(l) + '</span>' +
@@ -427,7 +448,7 @@ App.Views.Catering.Views = (function () {
         ? l.back + '/' + l.out + ' back'
         : (short === 0
             ? (cols >= 4 ? 'All' : 'All back')
-            : (cols >= 4 ? '-' + short : '<span style="display:inline-flex;align-items:center">' + U.icon('alertTriangle', 'tag-svg-icon') + short + ' missing</span>'));
+            : (cols >= 4 ? '-' + short : '<span style="display:inline-flex;align-items:center">' + U.icon('alertTriangle', 'tag-svg-icon') + short + ' shortage</span>'));
 
       return '<div class="grid-item-card' + (!isConsumable && short > 0 ? ' is-short' : '') + '" data-act="open-pack-modal" data-id="' + l.itemId + '">' +
         '<div class="grid-thumb-box" data-photo="' + photoKey + '">' +
@@ -461,14 +482,59 @@ App.Views.Catering.Views = (function () {
       (staffList.length ? '<div class="list mb16">' + html + '</div>' : U.empty('users', 'No crew assigned', 'Assign staff to this booking.'));
   }
 
+  /* ------------------------------------------------------------------
+     NOT OURS · Foreign & Borrowed Pieces Tab
+     ------------------------------------------------------------------ */
   function foreignTab(ev) {
     var t = S.tally(ev);
-    return '<div class="card mb12"><div class="row row-between"><div><h3 style="font-size:24px;font-family:Iowan Old Style,serif;color:var(--inasal-orange)">' + t.foreign + '</h3><p class="muted">foreign piece' + (t.foreign === 1 ? '' : 's') + ' in van</p></div>' +
+    var foreignList = ev.notOurs || [];
+
+    var cardsHtml = foreignList.map(function (n) {
+      var photoKey = n.photoId ? (n.photoId + '-t') : '';
+      var hasPhoto = !!n.photoId;
+
+      var thumbHtml = hasPhoto
+        ? '<span class="pack-thumb foreign-thumb" data-photo="' + photoKey + '" data-act="view-foreign-photo" data-id="' + n.id + '" style="width:52px;height:52px;flex:0 0 52px;border-radius:12px;cursor:pointer;border:1px solid var(--line);position:relative;background:var(--sand-soft)" aria-label="View photo">' +
+            '<span style="position:absolute;bottom:0;right:0;background:rgba(33,29,26,0.75);color:#fff;border-radius:50%;width:17px;height:17px;display:flex;align-items:center;justify-content:center">' + U.icon('zoom') + '</span>' +
+          '</span>'
+        : '<button type="button" class="pack-thumb foreign-thumb" data-act="edit-foreign" data-id="' + n.id + '" style="width:52px;height:52px;flex:0 0 52px;border-radius:12px;border:1px dashed var(--line-strong);background:var(--sand-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--timber-soft);cursor:pointer" aria-label="Add photo">' +
+            U.icon('camera') +
+            '<span style="font-size:8px;margin-top:2px;font-weight:700">Add Pic</span>' +
+          '</button>';
+
+      var badgeHtml = n.itemId
+        ? '<span class="tag tag-yellow" style="font-size:9.5px;font-weight:700">Borrowed</span>'
+        : '<span class="tag tag-red" style="font-size:9.5px;font-weight:700">Not Ours</span>';
+
+      var brandHtml = n.brand ? '<span class="m2">' + U.tag(n.brand, 'orange') + '</span>' : '';
+
+      return '<div class="card mb10" style="padding:10px 12px;border-radius:14px;background:#FFF;border:1px solid var(--line)">' +
+        '<div class="row" style="align-items:flex-start">' +
+          thumbHtml +
+          '<div class="grow ml10 mr8 pack-item-clickable" data-act="edit-foreign" data-id="' + n.id + '" style="min-width:0;cursor:pointer">' +
+            '<div class="row row-between" style="align-items:flex-start">' +
+              '<span class="item-name" style="font-size:14.5px;font-weight:700;color:var(--timber-ink);line-height:1.24;word-break:break-word">' +
+                U.esc(n.label) + chev() +
+              '</span>' +
+            '</div>' +
+            '<div class="row mt4" style="flex-wrap:wrap;align-items:center;margin:-2px">' +
+              '<span class="m2">' + badgeHtml + '</span>' +
+              brandHtml +
+              '<strong class="m2" style="font-size:11.5px;color:var(--inasal-dark)">' + n.qty + ' ' + (n.qty === 1 ? 'pc' : 'pcs') + '</strong>' +
+            '</div>' +
+            (n.note ? '<div class="muted mt4 truncate" style="font-size:11px;color:var(--timber-soft)">' + U.icon('edit', 'mr4') + U.esc(n.note) + '</div>' : '') +
+          '</div>' +
+          '<button type="button" class="lr-trash" data-act="del-foreign" data-id="' + n.id + '" aria-label="Remove ' + U.esc(n.label) + '" style="margin-top:-2px;margin-right:-2px">' +
+            U.icon('trash') +
+          '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="card mb12"><div class="row row-between"><div><h3 style="font-size:24px;font-family:Iowan Old Style,serif;color:var(--inasal-orange)">' + t.foreign + '</h3><p class="muted">foreign / borrowed piece' + (t.foreign === 1 ? '' : 's') + ' in van</p></div>' +
       '<button type="button" class="btn btn-primary btn-sm" data-act="add-foreign" style="width:auto;padding:0 12px">' + U.icon('plus', 'mr4') + ' Flag item</button></div>' +
-      '<p class="muted mt8" style="font-size:12px">Log venue plates or borrowed bowls so they get returned.</p></div>' +
-      (ev.notOurs.length ? '<div class="list mb16">' + ev.notOurs.map(function (n) {
-        return '<div class="item"><span class="thumb" style="color:var(--alert)">' + U.icon('alertTriangle') + '</span><span class="grow mr8" style="min-width:0"><span class="item-name truncate">' + U.esc(n.label) + '</span><span class="item-sub">' + n.qty + ' pc' + (n.note ? ' &middot; ' + U.esc(n.note) : '') + '</span></span><button type="button" class="step-btn" data-act="del-foreign" data-id="' + n.id + '">' + U.icon('close') + '</button></div>';
-      }).join('') + '</div>' : U.empty('check', 'Nothing foreign flagged', 'All items belong to Loreto\u2019s.'));
+      '<p class="muted mt8" style="font-size:12px">Log venue plates, borrowed bowls, or external gear with photos so they are safely returned.</p></div>' +
+      (foreignList.length ? '<div class="list mb16">' + cardsHtml + '</div>' : U.empty('check', 'Nothing foreign flagged', 'All items belong to Loreto\u2019s.'));
   }
 
   return {

@@ -2,11 +2,14 @@
    Loreto's Catering Tracker — Data Store (js/store.js)
    - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s compatible)
    - Zero emojis: Clean Feather/Lucide vector SVG iconography
-   - Hybrid Deficit Splitter: boughtQty increases stock, borrowedQty logs to notOurs
-   - Pack-Down Incident Tracking: broken, brokenReason, missingReason
+   - 4-Way Shortage Breakdown (Intact, Broken, Left at Venue, Missing/Lost)
+   - Manual Remarks & "Other" Reason Support stored permanently on incidents
+   - Venue Recovery & Stock Replenishment: recoverVenueItem()
+   - Replaced Gear Logging: markIncidentReplaced()
    - Structured Event Incidents Debrief on event closure
    - Item Incident History extractor for Shelf/Inventory timeline
-   - Analytics Aggregator: 6-mo recovery sparkline, loss donut, venue watchlist
+   - Analytics Aggregator: 6-mo recovery sparkline, 3-way loss donut, venue watchlist
+   - Foreign Item & Borrowed Pieces Management with Photo ID & Shelf Item Linking
    ========================================================================== */
 window.App = window.App || {};
 App.Store = (function () {
@@ -186,7 +189,15 @@ App.Store = (function () {
       if (!ev.staffIds) ev.staffIds = [];
       if (!ev.lines) ev.lines = [];
       if (!ev.incidents) ev.incidents = [];
+      if (!ev.notOurs) ev.notOurs = [];
       if (ev.presetId === undefined) ev.presetId = '';
+
+      ev.notOurs.forEach(function (n) {
+        if (n.photoId === undefined) n.photoId = '';
+        if (n.itemId === undefined) n.itemId = '';
+        if (n.brand === undefined) n.brand = '';
+      });
+
       ev.lines.forEach(function (l) {
         if (l.isConsumable === undefined) {
           var matchedItem = item(l.itemId);
@@ -198,6 +209,22 @@ App.Store = (function () {
         if (l.broken === undefined) l.broken = 0;
         if (l.brokenReason === undefined) l.brokenReason = '';
         if (l.missingReason === undefined) l.missingReason = '';
+        if (l.customRemark === undefined) l.customRemark = '';
+
+        var diff = Math.max(0, (l.out || 0) - (l.back || 0) - (l.broken || 0));
+        if (l.leftVenue === undefined) {
+          if (l.missingReason && l.missingReason.indexOf('venue') > -1) {
+            l.leftVenue = diff;
+            l.missing = 0;
+          } else {
+            l.leftVenue = 0;
+            l.missing = diff;
+          }
+        }
+        if (l.missing === undefined) {
+          l.missing = Math.max(0, diff - (l.leftVenue || 0));
+        }
+        if (l.leftVenueReason === undefined) l.leftVenueReason = 'Left at venue';
       });
     });
 
@@ -283,7 +310,7 @@ App.Store = (function () {
     }
 
     var hist = history();
-    var eventsUsed = 0, totalLoadedEver = 0, totalMissingEver = 0, totalBrokenEver = 0, totalConsumedEver = 0, lastUsedDate = '';
+    var eventsUsed = 0, totalLoadedEver = 0, totalMissingEver = 0, totalBrokenEver = 0, totalLeftVenueEver = 0, totalRecoveredEver = 0, totalConsumedEver = 0, lastUsedDate = '';
     hist.forEach(function (e) {
       var found = false;
       e.lines.forEach(function (l) {
@@ -293,11 +320,15 @@ App.Store = (function () {
           if (it.isConsumable || l.isConsumable) {
             totalConsumedEver += Math.max(0, (l.out || 0) - (l.back || 0));
           } else {
-            var brk = l.broken || 0;
-            var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
-            totalBrokenEver += brk;
-            totalMissingEver += mis;
+            totalBrokenEver += (l.broken || 0);
+            totalLeftVenueEver += (l.leftVenue || 0);
+            totalMissingEver += (l.missing !== undefined ? l.missing : Math.max(0, (l.out || 0) - (l.back || 0) - (l.broken || 0) - (l.leftVenue || 0)));
           }
+        }
+      });
+      (e.incidents || []).forEach(function (inc) {
+        if (inc.itemId === id && inc.status === 'recovered') {
+          totalRecoveredEver += (inc.recoveredQty || inc.qty || 1);
         }
       });
       if (found) {
@@ -329,6 +360,8 @@ App.Store = (function () {
       totalLoadedEver: totalLoadedEver,
       totalMissingEver: totalMissingEver,
       totalBrokenEver: totalBrokenEver,
+      totalLeftVenueEver: totalLeftVenueEver,
+      totalRecoveredEver: totalRecoveredEver,
       totalConsumedEver: totalConsumedEver,
       lastUsedDate: lastUsedDate,
       presetsCount: presetsCount,
@@ -357,39 +390,26 @@ App.Store = (function () {
     });
   }
 
-  /* Extract Past Incident History for a specific item (for Feature 4) */
+  /* Extract Past Incident History for a specific item */
   function itemIncidents(itemId) {
     var incidents = [];
     var hist = history();
     hist.forEach(function (e) {
-      (e.lines || []).forEach(function (l) {
-        if (l.itemId === itemId && !l.isConsumable) {
-          var brk = l.broken || 0;
-          var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
-          if (brk > 0) {
-            incidents.push({
-              eventId: e.id,
-              date: e.date || '',
-              eventName: e.name,
-              venue: e.venue || 'No venue',
-              type: 'broken',
-              qty: brk,
-              unit: l.unit || 'pc',
-              reason: l.brokenReason || 'Damaged'
-            });
-          }
-          if (mis > 0) {
-            incidents.push({
-              eventId: e.id,
-              date: e.date || '',
-              eventName: e.name,
-              venue: e.venue || 'No venue',
-              type: 'missing',
-              qty: mis,
-              unit: l.unit || 'pc',
-              reason: l.missingReason || 'Left at venue'
-            });
-          }
+      (e.incidents || []).forEach(function (inc, idx) {
+        if (inc.itemId === itemId) {
+          incidents.push({
+            eventId: e.id,
+            incidentIndex: idx,
+            date: e.date || '',
+            eventName: e.name,
+            venue: e.venue || 'No venue',
+            type: inc.type,
+            qty: inc.qty,
+            unit: inc.unit || 'pc',
+            reason: inc.reason || '',
+            remark: inc.remark || '',
+            status: inc.status || 'open'
+          });
         }
       });
     });
@@ -408,23 +428,24 @@ App.Store = (function () {
         recoveryPct: t.pct,
         missing: t.missing,
         broken: t.broken,
+        leftVenue: t.leftVenue,
         consumed: t.consumed
       };
     });
   }
 
-  /* Analytics Aggregator (for Feature 3: History & Analytics Dual View) */
+  /* Analytics Aggregator */
   function analyticsSummary() {
     var hist = history();
     var totalGigs = hist.length;
-    var totalDurableOut = 0, totalDurableBack = 0, totalBroken = 0, totalMissing = 0, totalConsumed = 0;
+    var totalDurableOut = 0, totalDurableBack = 0, totalBroken = 0, totalMissing = 0, totalLeftVenue = 0, totalRecovered = 0, totalConsumed = 0;
     var venueStats = {};
     var consumableMap = {};
 
     hist.forEach(function (e) {
       var vName = (e.venue || 'Unspecified venue').trim();
       if (!venueStats[vName]) {
-        venueStats[vName] = { venue: vName, gigs: 0, broken: 0, missing: 0, incidents: 0 };
+        venueStats[vName] = { venue: vName, gigs: 0, broken: 0, missing: 0, leftVenue: 0, recovered: 0, incidents: 0 };
       }
       venueStats[vName].gigs++;
 
@@ -442,25 +463,40 @@ App.Store = (function () {
           totalDurableOut += out;
           totalDurableBack += back;
           var brk = l.broken || 0;
-          var mis = Math.max(0, out - back - brk);
+          var lv = l.leftVenue || 0;
+          var mis = (l.missing !== undefined) ? l.missing : Math.max(0, out - back - brk - lv);
+
           totalBroken += brk;
+          totalLeftVenue += lv;
           totalMissing += mis;
 
-          if (brk > 0 || mis > 0) {
+          if (brk > 0 || mis > 0 || lv > 0) {
             venueStats[vName].broken += brk;
             venueStats[vName].missing += mis;
-            venueStats[vName].incidents += (brk + mis);
+            venueStats[vName].leftVenue += lv;
+            venueStats[vName].incidents += (brk + mis + lv);
+          }
+        }
+      });
+
+      (e.incidents || []).forEach(function (inc) {
+        if (inc.status === 'recovered') {
+          var rQty = inc.recoveredQty || inc.qty || 1;
+          totalRecovered += rQty;
+          if (venueStats[vName]) {
+            venueStats[vName].recovered += rQty;
           }
         }
       });
     });
 
     var overallPct = totalDurableOut > 0 ? Math.round((totalDurableBack / totalDurableOut) * 100) : 100;
-    var totalIncidents = totalBroken + totalMissing;
-    var brokenPct = totalIncidents > 0 ? Math.round((totalBroken / totalIncidents) * 100) : 50;
-    var missingPct = totalIncidents > 0 ? (100 - brokenPct) : 50;
+    var totalIncidents = totalBroken + totalMissing + totalLeftVenue;
+    
+    var brokenPct = totalIncidents > 0 ? Math.round((totalBroken / totalIncidents) * 100) : 0;
+    var missingPct = totalIncidents > 0 ? Math.round((totalMissing / totalIncidents) * 100) : 0;
+    var leftVenuePct = totalIncidents > 0 ? Math.max(0, 100 - brokenPct - missingPct) : 0;
 
-    // Top consumables list
     var topConsumables = [];
     for (var k in consumableMap) {
       if (consumableMap.hasOwnProperty(k)) {
@@ -470,7 +506,6 @@ App.Store = (function () {
     topConsumables.sort(function (a, b) { return b.count - a.count; });
     topConsumables = topConsumables.slice(0, 5);
 
-    // Venue watchlist
     var venueList = [];
     for (var vn in venueStats) {
       if (venueStats.hasOwnProperty(vn)) {
@@ -480,7 +515,6 @@ App.Store = (function () {
     venueList.sort(function (a, b) { return b.incidents - a.incidents; });
     var venueWatchlist = venueList.filter(function (v) { return v.incidents > 0; }).slice(0, 5);
 
-    // 6-Month recovery sparkline points
     var trendData = overallRecoveryTrend();
     var sparkPoints = [];
     if (trendData.length > 0) {
@@ -499,9 +533,12 @@ App.Store = (function () {
       overallReturnPct: overallPct,
       totalBroken: totalBroken,
       totalMissing: totalMissing,
+      totalLeftVenue: totalLeftVenue,
+      totalRecovered: totalRecovered,
       totalIncidents: totalIncidents,
       brokenPct: brokenPct,
       missingPct: missingPct,
+      leftVenuePct: leftVenuePct,
       totalConsumed: totalConsumed,
       topConsumables: topConsumables,
       venueWatchlist: venueWatchlist,
@@ -524,7 +561,7 @@ App.Store = (function () {
       ex.tagStyle = 'tape';
       ex.updatedAt = ts;
     } else {
-      data.id = uid('i-');
+      data.id = data.id || uid('i-');
       data.createdAt = ts;
       data.updatedAt = ts;
       data.isConsumable = !!data.isConsumable;
@@ -779,7 +816,11 @@ App.Store = (function () {
       back: 0,
       broken: 0,
       brokenReason: '',
-      missingReason: ''
+      missing: 0,
+      missingReason: '',
+      leftVenue: 0,
+      leftVenueReason: '',
+      customRemark: ''
     };
   }
 
@@ -845,9 +886,12 @@ App.Store = (function () {
       if (l.itemId === itemId) {
         found = true;
         l.out = targetQty;
-        if (l.back + (l.broken || 0) > l.out) {
+        var accounted = l.back + (l.broken || 0) + (l.missing || 0) + (l.leftVenue || 0);
+        if (accounted > l.out) {
           l.back = Math.min(l.back, l.out);
-          l.broken = Math.max(0, Math.min(l.broken || 0, l.out - l.back));
+          l.broken = 0;
+          l.missing = 0;
+          l.leftVenue = 0;
         }
       }
     });
@@ -868,34 +912,78 @@ App.Store = (function () {
     ev.lines.forEach(function (l) {
       if (l.itemId === itemId) {
         l.back = Math.max(0, Math.min(l.out, n));
-        if (l.back + (l.broken || 0) > l.out) {
-          l.broken = Math.max(0, l.out - l.back);
+        var remainingShortage = Math.max(0, l.out - l.back);
+        var totalDiscrepancy = (l.broken || 0) + (l.missing || 0) + (l.leftVenue || 0);
+        if (totalDiscrepancy > remainingShortage) {
+          l.broken = Math.min(l.broken || 0, remainingShortage);
+          var remAfterBroken = remainingShortage - l.broken;
+          l.leftVenue = Math.min(l.leftVenue || 0, remAfterBroken);
+          l.missing = Math.max(0, remAfterBroken - l.leftVenue);
+        } else if (totalDiscrepancy < remainingShortage && !l.isConsumable) {
+          l.missing = (l.missing || 0) + (remainingShortage - totalDiscrepancy);
         }
       }
     });
     save();
   }
 
-  /* Record detailed packdown return (Feature 2) */
-  function setPackReturn(ev, itemId, backQty, brokenQty, brokenReason, missingReason) {
+  /* Record detailed packdown return with 4-way breakdown and custom remark */
+  function setPackReturn(ev, itemId, backQty, brokenQty, missingQty, leftVenueQty, brokenReason, missingReason, leftVenueReason, customRemark) {
     if (!ev) return;
     ev.lines.forEach(function (l) {
       if (l.itemId === itemId) {
         var cleanBack = Math.max(0, Math.min(l.out, backQty));
-        var maxBroken = Math.max(0, l.out - cleanBack);
-        var cleanBroken = Math.max(0, Math.min(maxBroken, brokenQty || 0));
+        var unreturned = Math.max(0, l.out - cleanBack);
 
-        l.back = cleanBack;
-        l.broken = cleanBroken;
-        l.brokenReason = cleanBroken > 0 ? (brokenReason || 'Damaged') : '';
-        var cleanMissing = Math.max(0, l.out - cleanBack - cleanBroken);
-        l.missingReason = cleanMissing > 0 ? (missingReason || 'Left at venue') : '';
+        if (l.isConsumable) {
+          l.back = cleanBack;
+          l.broken = 0;
+          l.missing = 0;
+          l.leftVenue = 0;
+          l.customRemark = '';
+        } else {
+          var cleanBroken = Math.max(0, Math.min(unreturned, brokenQty || 0));
+          var remAfterBroken = unreturned - cleanBroken;
+
+          var cleanLeftVenue = Math.max(0, Math.min(remAfterBroken, leftVenueQty || 0));
+          var remAfterVenue = remAfterBroken - cleanLeftVenue;
+
+          var cleanMissing = (missingQty !== undefined) ? Math.max(0, Math.min(remAfterVenue, missingQty)) : remAfterVenue;
+          var unallocated = remAfterVenue - cleanMissing;
+          if (unallocated > 0) {
+            cleanMissing += unallocated;
+          }
+
+          l.back = cleanBack;
+          l.broken = cleanBroken;
+          l.leftVenue = cleanLeftVenue;
+          l.missing = cleanMissing;
+          l.customRemark = (customRemark || '').trim();
+
+          if (brokenReason === 'Other') {
+            l.brokenReason = l.customRemark ? ('Other: ' + l.customRemark) : 'Other / Unspecified';
+          } else {
+            l.brokenReason = cleanBroken > 0 ? (brokenReason || 'Shattered / Dropped') : '';
+          }
+
+          if (leftVenueReason === 'Other') {
+            l.leftVenueReason = l.customRemark ? ('Other: ' + l.customRemark) : 'Other / Unspecified';
+          } else {
+            l.leftVenueReason = cleanLeftVenue > 0 ? (leftVenueReason || 'Left at venue') : '';
+          }
+
+          if (missingReason === 'Other') {
+            l.missingReason = l.customRemark ? ('Other: ' + l.customRemark) : 'Other / Unspecified';
+          } else {
+            l.missingReason = cleanMissing > 0 ? (missingReason || 'Lost / Unaccounted') : '';
+          }
+        }
       }
     });
     save();
   }
 
-  /* Hybrid Deficit Splitter: bought increases stock, borrowed goes to notOurs (Feature 1) */
+  /* Hybrid Deficit Splitter: bought increases stock, borrowed goes to notOurs */
   function splitDeficit(ev, itemId, boughtQty, borrowedQty, lenderNote) {
     if (!ev) return;
     var it = item(itemId);
@@ -910,7 +998,7 @@ App.Store = (function () {
     }
 
     if (borrowedQty > 0) {
-      addNotOurs(ev, it.name, borrowedQty, lenderNote || ('Borrowed for ' + ev.name));
+      addNotOurs(ev, it.name, borrowedQty, lenderNote || ('Borrowed for ' + ev.name), it.photoId, it.id, it.brand);
     }
 
     save();
@@ -933,15 +1021,21 @@ App.Store = (function () {
         var targetQty = clamp ? Math.min(pl.qty, it.qty) : pl.qty;
         if (targetQty <= 0) return;
 
-        var preservedBack = 0, preservedBroken = 0;
+        var preservedBack = 0, preservedBroken = 0, preservedMissing = 0, preservedLeftVenue = 0, preservedRemark = '';
         if (oldLinesMap[pl.itemId]) {
           preservedBack = Math.min(oldLinesMap[pl.itemId].back, targetQty);
           preservedBroken = Math.min(oldLinesMap[pl.itemId].broken || 0, targetQty - preservedBack);
+          preservedLeftVenue = Math.min(oldLinesMap[pl.itemId].leftVenue || 0, targetQty - preservedBack - preservedBroken);
+          preservedMissing = Math.min(oldLinesMap[pl.itemId].missing || 0, targetQty - preservedBack - preservedBroken - preservedLeftVenue);
+          preservedRemark = oldLinesMap[pl.itemId].customRemark || '';
         }
 
         var l = lineFrom(it, targetQty);
         l.back = preservedBack;
         l.broken = preservedBroken;
+        l.leftVenue = preservedLeftVenue;
+        l.missing = preservedMissing;
+        l.customRemark = preservedRemark;
         newLines.push(l);
       });
       ev.lines = newLines;
@@ -984,32 +1078,74 @@ App.Store = (function () {
     save();
   }
 
-  function addNotOurs(ev, label, qty, note) {
+  function addNotOurs(ev, label, qty, note, photoId, itemId, brand) {
+    if (!ev) return;
     if (!ev.notOurs) ev.notOurs = [];
-    ev.notOurs.push({
+    var entry = {
       id: uid('n-'),
-      label: label || 'Unmarked item',
-      qty: qty || 1,
-      note: note || ''
-    });
+      label: (label || 'Unmarked item').trim(),
+      qty: Math.max(1, parseInt(qty, 10) || 1),
+      note: (note || '').trim(),
+      photoId: photoId || '',
+      itemId: itemId || '',
+      brand: (brand || '').trim(),
+      createdAt: now()
+    };
+    ev.notOurs.push(entry);
     save();
+    return entry;
+  }
+
+  function updateNotOurs(ev, id, data) {
+    if (!ev || !ev.notOurs) return null;
+    var entry = null;
+    for (var i = 0; i < ev.notOurs.length; i++) {
+      if (ev.notOurs[i].id === id) {
+        entry = ev.notOurs[i];
+        break;
+      }
+    }
+    if (!entry) return null;
+    if (data.label !== undefined) entry.label = (data.label || 'Unmarked item').trim();
+    if (data.qty !== undefined) entry.qty = Math.max(1, parseInt(data.qty, 10) || 1);
+    if (data.note !== undefined) entry.note = (data.note || '').trim();
+    if (data.photoId !== undefined) entry.photoId = data.photoId || '';
+    if (data.itemId !== undefined) entry.itemId = data.itemId || '';
+    if (data.brand !== undefined) entry.brand = (data.brand || '').trim();
+    entry.updatedAt = now();
+    save();
+    return entry;
   }
 
   function removeNotOurs(ev, id) {
-    if (!ev.notOurs) return;
+    if (!ev || !ev.notOurs) return;
+    var target = null;
+    ev.notOurs.forEach(function (n) { if (n.id === id) target = n; });
+    if (target && target.photoId) {
+      var it = target.itemId ? item(target.itemId) : null;
+      if (!it || it.photoId !== target.photoId) {
+        if (App.DB) {
+          App.DB.del(target.photoId);
+          App.DB.del(target.photoId + '-t');
+        }
+      }
+    }
     ev.notOurs = ev.notOurs.filter(function (n) { return n.id !== id; });
     save();
   }
 
   function tally(ev) {
     var totalOut = 0, totalBack = 0;
-    var durableOut = 0, durableBack = 0, durableBroken = 0;
+    var durableOut = 0, durableBack = 0, durableBroken = 0, durableMissing = 0, durableLeftVenue = 0;
     var consumableOut = 0, consumableBack = 0;
 
     (ev.lines || []).forEach(function (l) {
       var out = l.out || 0;
       var back = l.back || 0;
       var brk = l.broken || 0;
+      var lv = l.leftVenue || 0;
+      var mis = (l.missing !== undefined) ? l.missing : Math.max(0, out - back - brk - lv);
+
       totalOut += out;
       totalBack += back;
 
@@ -1020,13 +1156,15 @@ App.Store = (function () {
         durableOut += out;
         durableBack += back;
         durableBroken += brk;
+        durableLeftVenue += lv;
+        durableMissing += mis;
       }
     });
 
     var foreign = 0;
     (ev.notOurs || []).forEach(function (n) { foreign += (n.qty || 0); });
 
-    var missingDurable = Math.max(0, durableOut - durableBack - durableBroken);
+    var totalUnreturned = Math.max(0, durableOut - durableBack);
     var consumedItems = Math.max(0, consumableOut - consumableBack);
 
     var pct = 100;
@@ -1038,7 +1176,9 @@ App.Store = (function () {
       out: totalOut,
       back: totalBack,
       broken: durableBroken,
-      missing: missingDurable,
+      missing: durableMissing,
+      leftVenue: durableLeftVenue,
+      totalUnreturned: totalUnreturned,
       consumed: consumedItems,
       durableOut: durableOut,
       durableBack: durableBack,
@@ -1063,37 +1203,80 @@ App.Store = (function () {
         }
       } else {
         var brk = l.broken || 0;
-        var mis = Math.max(0, (l.out || 0) - (l.back || 0) - brk);
+        var lv = l.leftVenue || 0;
+        var mis = (l.missing !== undefined) ? l.missing : Math.max(0, (l.out || 0) - (l.back || 0) - brk - lv);
+        var rmk = (l.customRemark || '').trim();
 
-        // Broken items are always permanently deducted from commissary
         if (brk > 0) {
           if (it) {
             it.qty = Math.max(0, (it.qty || 0) - brk);
             it.updatedAt = now();
           }
+          var brkFinalReason = l.brokenReason || 'Shattered / Dropped';
+          if (rmk && brkFinalReason.indexOf(rmk) === -1) {
+            brkFinalReason += ' (' + rmk + ')';
+          }
           incidents.push({
+            id: uid('inc-'),
             itemId: l.itemId,
             name: l.name,
+            brand: l.brand || '',
+            unit: l.unit || 'pc',
             type: 'broken',
             qty: brk,
-            unit: l.unit || 'pc',
-            reason: l.brokenReason || 'Damaged'
+            reason: brkFinalReason,
+            remark: rmk,
+            status: 'scrapped',
+            timestamp: now()
           });
         }
 
-        // Missing items are deducted if staff elected write-off
+        if (lv > 0) {
+          if (deductMissing && it) {
+            it.qty = Math.max(0, (it.qty || 0) - lv);
+            it.updatedAt = now();
+          }
+          var lvFinalReason = l.leftVenueReason || 'Left behind at venue';
+          if (rmk && lvFinalReason.indexOf(rmk) === -1) {
+            lvFinalReason += ' (' + rmk + ')';
+          }
+          incidents.push({
+            id: uid('inc-'),
+            itemId: l.itemId,
+            name: l.name,
+            brand: l.brand || '',
+            unit: l.unit || 'pc',
+            type: 'left_venue',
+            qty: lv,
+            reason: lvFinalReason,
+            remark: rmk,
+            status: 'pending_recovery',
+            venue: ev.venue || 'Event Venue',
+            timestamp: now()
+          });
+        }
+
         if (mis > 0) {
           if (deductMissing && it) {
             it.qty = Math.max(0, (it.qty || 0) - mis);
             it.updatedAt = now();
           }
+          var misFinalReason = l.missingReason || 'Lost / Unaccounted';
+          if (rmk && misFinalReason.indexOf(rmk) === -1) {
+            misFinalReason += ' (' + rmk + ')';
+          }
           incidents.push({
+            id: uid('inc-'),
             itemId: l.itemId,
             name: l.name,
+            brand: l.brand || '',
+            unit: l.unit || 'pc',
             type: 'missing',
             qty: mis,
-            unit: l.unit || 'pc',
-            reason: l.missingReason || 'Left at venue'
+            reason: misFinalReason,
+            remark: rmk,
+            status: 'lost',
+            timestamp: now()
           });
         }
       }
@@ -1106,6 +1289,57 @@ App.Store = (function () {
     ev.incidents = incidents;
     save();
     return tally(ev);
+  }
+
+  function recoverVenueItem(eventId, incidentIdx, recoveredQty) {
+    var ev = event(eventId);
+    if (!ev || !ev.incidents || !ev.incidents[incidentIdx]) return null;
+
+    var inc = ev.incidents[incidentIdx];
+    var qtyToAdd = Math.max(1, parseInt(recoveredQty, 10) || inc.qty || 1);
+
+    var existingItem = item(inc.itemId);
+    if (existingItem) {
+      existingItem.qty = (existingItem.qty || 0) + qtyToAdd;
+      existingItem.updatedAt = now();
+    } else {
+      var newItem = {
+        id: inc.itemId || uid('i-'),
+        name: inc.name,
+        brand: inc.brand || '',
+        categoryId: 'c-other',
+        qty: qtyToAdd,
+        unit: inc.unit || 'pc',
+        isConsumable: false,
+        lowStockThreshold: 2,
+        tagLabel: 'Found',
+        tagColor: 'green',
+        tagStyle: 'tape',
+        note: 'Restored from venue recovery (' + (ev.venue || ev.name) + ')',
+        photoId: '',
+        createdAt: now(),
+        updatedAt: now()
+      };
+      s.items.push(newItem);
+      existingItem = newItem;
+    }
+
+    inc.status = 'recovered';
+    inc.recoveredAt = now();
+    inc.recoveredQty = qtyToAdd;
+    save();
+    return { item: existingItem, incident: inc };
+  }
+
+  function markIncidentReplaced(eventId, incidentIdx) {
+    var ev = event(eventId);
+    if (!ev || !ev.incidents || !ev.incidents[incidentIdx]) return null;
+
+    var inc = ev.incidents[incidentIdx];
+    inc.status = 'replaced';
+    inc.replacedAt = now();
+    save();
+    return inc;
   }
 
   function removeEvent(id) {
@@ -1171,11 +1405,17 @@ App.Store = (function () {
           status = "Staged: " + l.out + " " + l.unit;
         } else {
           var brk = l.broken || 0;
-          var mis = Math.max(0, l.out - l.back - brk);
+          var lv = l.leftVenue || 0;
+          var mis = (l.missing !== undefined) ? l.missing : Math.max(0, l.out - l.back - brk - lv);
           if (l.out === l.back) {
-            status = "[✓] All " + l.out + " " + l.unit + " returned";
+            status = "[✓] All " + l.out + " " + l.unit + " returned intact";
           } else {
-            status = "[!] Back: " + l.back + "/" + l.out + (brk > 0 ? " (" + brk + " BROKEN - " + (l.brokenReason || 'Damaged') + ")" : "") + (mis > 0 ? " (" + mis + " MISSING - " + (l.missingReason || 'Venue') + ")" : "");
+            var parts = [l.back + "/" + l.out + " back"];
+            if (brk > 0) parts.push(brk + " BROKEN (" + (l.brokenReason || 'Damaged') + ")");
+            if (lv > 0) parts.push(lv + " LEFT AT VENUE (" + (l.leftVenueReason || 'Venue') + ")");
+            if (mis > 0) parts.push(mis + " MISSING/STOLEN (" + (l.missingReason || 'Lost') + ")");
+            if (l.customRemark) parts.push("Note: " + l.customRemark);
+            status = "[!] " + parts.join(', ');
           }
         }
         text += "• " + l.name + (l.brand ? " [" + l.brand + "]" : "") + " — " + status + "\n";
@@ -1203,7 +1443,8 @@ App.Store = (function () {
       text += "⚠️ NOT OURS / FOREIGN PIECES IN VAN (" + ev.notOurs.length + " items)\n";
       text += "-----------------------------------------\n";
       ev.notOurs.forEach(function (n) {
-        text += "• " + n.label + " (Qty: " + n.qty + ")" + (n.note ? " - Owner/Notes: " + n.note : "") + "\n";
+        var brandStr = n.brand ? " [" + n.brand + "]" : "";
+        text += "• " + n.label + brandStr + " (Qty: " + n.qty + ")" + (n.note ? " - Owner/Notes: " + n.note : "") + "\n";
       });
       text += "\n";
     }
@@ -1278,9 +1519,10 @@ App.Store = (function () {
     activeEvent: activeEvent, event: event, createEvent: createEvent,
     addLine: addLine, removeLine: removeLine, setOut: setOut, setBack: setBack,
     setPackReturn: setPackReturn, splitDeficit: splitDeficit,
+    recoverVenueItem: recoverVenueItem, markIncidentReplaced: markIncidentReplaced,
     applyPresetToEvent: applyPresetToEvent, returnToStaging: returnToStaging,
     assignStaff: assignStaff, unassignStaff: unassignStaff,
-    markLoaded: markLoaded, addNotOurs: addNotOurs, removeNotOurs: removeNotOurs,
+    markLoaded: markLoaded, addNotOurs: addNotOurs, updateNotOurs: updateNotOurs, removeNotOurs: removeNotOurs,
     tally: tally, closeEvent: closeEvent, removeEvent: removeEvent, history: history,
     kpis: kpis, exportData: exportData, importData: importData, reset: reset
   };

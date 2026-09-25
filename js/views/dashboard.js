@@ -1,6 +1,7 @@
 /* ==========================================================================
    Loreto's Catering Tracker — Views: Dashboard (js/views/dashboard.js)
    - Harmonized Active Booking Card (Matches Catering Mode .cat-head 1:1)
+   - Multi-Way Incident Indicators: Broken, At Venue, Missing, Recovered
    - Real Vector SVG Recovery Trend Line/Bar Chart (Zero Cut-Offs)
    - Redesigned Inventory Stock Health Widget with Dedicated Full-Width Action
    - Direct Tab Routing into Catering Mode (Load-out, Crew, Pack-down)
@@ -52,9 +53,18 @@ App.Views.dashboard = (function () {
 
       var progressSection = '';
       if (!isStaging) {
+        var issues = [];
+        if (t.broken > 0) issues.push(t.broken + ' broken');
+        if (t.leftVenue > 0) issues.push(t.leftVenue + ' at venue');
+        if (t.missing > 0) issues.push(t.missing + ' missing');
+
+        var issueSub = issues.length
+          ? ' &middot; <strong class="cat-warn-text">' + issues.join(', ') + '</strong>'
+          : ' &middot; all accounted for';
+
         var meterSub = t.durableOut > 0
           ? t.durableBack + ' of ' + t.durableOut + ' gear back (' + t.pct + '%)' +
-            (t.missing ? ' &middot; <strong class="cat-warn-text">' + t.missing + ' missing</strong>' : ' &middot; all accounted for') +
+            issueSub +
             (t.consumed > 0 ? ' &middot; ' + t.consumed + ' used' : '')
           : t.back + ' of ' + t.out + ' pieces back' +
             (t.consumed > 0 ? ' &middot; ' + t.consumed + ' used' : '');
@@ -180,7 +190,7 @@ App.Views.dashboard = (function () {
           '</svg>' +
           '<div class="row row-between mt2" style="font-size:10.5px;color:var(--timber-soft)">' +
             '<span>Green dot = 100% equipment returned</span>' +
-            '<span>Orange = missing items</span>' +
+            '<span>Orange = gear discrepancies</span>' +
           '</div>' +
         '</div>';
     }
@@ -216,7 +226,7 @@ App.Views.dashboard = (function () {
         '</button>' +
       '</div>';
 
-    // Recent Completed Events List
+    // Recent Completed Events List with Multi-Way Incident Tags
     var recentGigsHtml = '';
     if (historyList.length) {
       var recent = historyList.slice(0, 3);
@@ -230,7 +240,22 @@ App.Views.dashboard = (function () {
         '<div class="list mb12">' +
           recent.map(function (evItem) {
             var evTally = S.tally(evItem);
-            var isPerfect = evTally.pct === 100;
+            var isPerfect = evTally.pct === 100 && evTally.broken === 0;
+
+            var badgesHtml = '<span class="tag ' + (isPerfect ? 'tag-green' : 'tag-orange') + '" style="font-size:9.5px;margin-right:4px">' + evTally.pct + '% recovered</span>';
+            if (evTally.broken > 0) {
+              badgesHtml += '<span class="tag tag-red" style="font-size:9.5px;margin-right:4px">' + evTally.broken + ' broken</span>';
+            }
+            if (evTally.leftVenue > 0) {
+              badgesHtml += '<span class="tag" style="background:#FFFBF0;color:#8A6805;font-size:9.5px;margin-right:4px">' + evTally.leftVenue + ' at venue</span>';
+            }
+            if (evTally.missing > 0) {
+              badgesHtml += '<span class="tag tag-red" style="font-size:9.5px;margin-right:4px">' + evTally.missing + ' lost</span>';
+            }
+            if (evTally.consumed > 0) {
+              badgesHtml += '<span class="tag tag-yellow" style="font-size:9.5px;margin-right:4px">' + evTally.consumed + ' used</span>';
+            }
+
             return '<button type="button" class="item" data-act="inspect-past-gig" data-id="' + evItem.id + '">' +
               '<span class="thumb" style="' + (isPerfect ? 'color:var(--foliage);background:var(--foliage-tint)' : 'color:var(--inasal-orange);background:var(--inasal-soft)') + '">' +
                 U.icon(isPerfect ? 'check' : 'calendar') +
@@ -240,9 +265,8 @@ App.Views.dashboard = (function () {
                 '<span class="item-sub truncate">' +
                   U.esc(evItem.venue || 'No venue') + ' &middot; ' + U.esc(U.fmtDate(evItem.date)) +
                 '</span>' +
-                '<span class="row mt4" style="margin-right:4px">' +
-                  '<span class="tag ' + (isPerfect ? 'tag-green' : 'tag-orange') + '" style="font-size:9.5px;margin-right:4px">' + evTally.pct + '% recovered</span>' +
-                  (evTally.consumed > 0 ? '<span class="tag tag-yellow" style="font-size:9.5px">' + evTally.consumed + ' used</span>' : '') +
+                '<span class="row mt4" style="flex-wrap:wrap;gap:2px">' +
+                  badgesHtml +
                 '</span>' +
               '</span>' +
               '<span class="item-qty">' + U.icon('chevronRight') + '</span>' +

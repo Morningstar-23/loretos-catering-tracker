@@ -4,7 +4,8 @@
    - 100% Strict ES5 (iOS 12 Mobile Safari / iPhone 5s 320px viewport)
    - Hybrid Deficit Splitter: Linked Bought vs. Borrowed reconciliation
    - Stock Discrepancy Reconciliation Gatekeeper with 1-Tap Split launcher
-   - 3-Way Pack-Down Debrief: Intact Recovery %, Broken Scrap, Missing at Venue
+   - 4-Way Pack-Down Debrief: Intact Recovery %, Broken Scrap, Left at Venue, Missing
+   - Foreign Item Flagging ("Not Ours") controller bindings & Photo hydration
    - Universal "Items per category" pagination: [ 2 | 3 | 5 | 10 | All ]
    - Bidirectional Swipe-to-Delete: Swipe left to reveal, right to close
    ========================================================================== */
@@ -258,7 +259,7 @@ App.Views.catering = (function () {
   function getFilteredBackLines(lines) {
     var q = (loadQ || '').toLowerCase().trim();
     return lines.filter(function (l) {
-      if (onlyShort && (l.isConsumable || (l.back + (l.broken || 0) >= l.out))) return false;
+      if (onlyShort && (l.isConsumable || l.back >= l.out)) return false;
       if (loadCat) {
         var it = S.item(l.itemId);
         if (!it || it.categoryId !== loadCat) return false;
@@ -266,8 +267,8 @@ App.Views.catering = (function () {
       if (!q) return true;
       return (l.name + ' ' + (l.brand || '') + ' ' + (l.tagLabel || '')).toLowerCase().indexOf(q) > -1;
     }).sort(function (a, b) {
-      var shortA = (!a.isConsumable && (a.back + (a.broken || 0) < a.out)) ? 1 : 0;
-      var shortB = (!b.isConsumable && (b.back + (b.broken || 0) < b.out)) ? 1 : 0;
+      var shortA = (!a.isConsumable && a.back < a.out) ? 1 : 0;
+      var shortB = (!b.isConsumable && b.back < b.out) ? 1 : 0;
       if (shortA !== shortB) return shortB - shortA;
       var itA = S.item(a.itemId), itB = S.item(b.itemId);
       var catA = itA ? itA.categoryId : '', catB = itB ? itB.categoryId : '';
@@ -276,7 +277,7 @@ App.Views.catering = (function () {
     });
   }
 
-  /* Feature 1: Hybrid Deficit Splitter Modal (Bought vs. Borrowed) */
+  /* Hybrid Deficit Splitter Modal (Bought vs. Borrowed) */
   function openSplitDeficitModal(ev, itemId, autoProceedOnResolve) {
     var it = S.item(itemId);
     if (!it) return;
@@ -330,7 +331,6 @@ App.Views.catering = (function () {
         '<button type="button" class="split-pill-btn" data-act="split-preset" data-val="all-borrowed">All ' + diff + ' Borrowed</button>' +
       '</div>' +
 
-      '<!-- Bought Stepper Card -->' +
       '<div class="split-stepper-card bought mb8">' +
         '<div class="row row-between">' +
           '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
@@ -345,7 +345,6 @@ App.Views.catering = (function () {
         '</div>' +
       '</div>' +
 
-      '<!-- Borrowed Stepper Card -->' +
       '<div class="split-stepper-card borrowed mb8">' +
         '<div class="row row-between">' +
           '<div style="min-width:0;flex:1 1 auto;margin-right:8px">' +
@@ -797,7 +796,9 @@ App.Views.catering = (function () {
       act === 'open-staff-picker' ||
       act === 'manage-presets' ||
       act === 'new-preset' ||
-      act === 'new-blank'
+      act === 'new-blank' ||
+      act === 'add-foreign' ||
+      act === 'edit-foreign'
     ) {
       if (!U.isSheetOpen() && Nav) {
         Nav.clear();
@@ -999,7 +1000,7 @@ App.Views.catering = (function () {
       if (lineToBorrow && lineToBorrow.out > ownedBorrow) {
         var surplusBorrow = lineToBorrow.out - ownedBorrow;
         lineToBorrow.out = ownedBorrow;
-        S.addNotOurs(ev, lineToBorrow.name, surplusBorrow, 'Borrowed extra for ' + ev.name);
+        S.addNotOurs(ev, lineToBorrow.name, surplusBorrow, 'Borrowed extra for ' + ev.name, itToBorrow ? itToBorrow.photoId : '', itToBorrow ? itToBorrow.id : '', itToBorrow ? itToBorrow.brand : '');
         ev.lines = ev.lines.filter(function (l) { return l.out > 0; });
         S.save();
         U.toast(surplusBorrow + ' pieces moved to Foreign/Borrowed.');
@@ -1309,8 +1310,11 @@ App.Views.catering = (function () {
           if (!l.isConsumable) {
             l.back = l.out;
             l.broken = 0;
+            l.missing = 0;
+            l.leftVenue = 0;
             l.brokenReason = '';
             l.missingReason = '';
+            l.leftVenueReason = '';
           }
         });
         S.save();
@@ -1354,29 +1358,47 @@ App.Views.catering = (function () {
       return;
     }
 
-    /* 12. Close Event (3-Way Debrief: Intact, Broken, Missing, Consumables) */
+    /* 12. Close Event (4-Way Debrief: Intact, Broken, Left Venue, Missing, Consumables) */
     if (act === 'close-event') {
       if (Nav) Nav.clear();
       var t = S.tally(ev);
-      var missing = ev.lines.filter(function (l) { return !l.isConsumable && (l.out - l.back - (l.broken || 0)) > 0; });
+      var missing = ev.lines.filter(function (l) {
+        var misCount = (l.missing !== undefined) ? l.missing : Math.max(0, l.out - l.back - (l.broken || 0) - (l.leftVenue || 0));
+        return !l.isConsumable && misCount > 0;
+      });
+      var leftVenue = ev.lines.filter(function (l) { return !l.isConsumable && (l.leftVenue || 0) > 0; });
       var broken = ev.lines.filter(function (l) { return !l.isConsumable && (l.broken || 0) > 0; });
       var used = ev.lines.filter(function (l) { return l.isConsumable && l.out > l.back; });
 
       var brokenNotice = broken.length ? (
         '<div class="card mb8" style="background:#FFF9F8;border:1px solid rgba(214,57,32,0.2);padding:7px 10px;font-size:11.5px">' +
-          '<span style="color:var(--alert);font-weight:700">' + U.icon('alertTriangle', 'mr4') + t.broken + ' broken piece' + (t.broken === 1 ? '' : 's') + ' will be permanently scrapped from stock.</span>' +
+          '<span style="color:var(--alert);font-weight:700">' + U.icon('trash', 'mr4') + t.broken + ' broken piece' + (t.broken === 1 ? '' : 's') + ' will be permanently scrapped from commissary stock.</span>' +
+        '</div>'
+      ) : '';
+
+      var venueNotice = leftVenue.length ? (
+        '<div class="card mb8" style="background:#FFFBF0;border:1px solid rgba(212,155,66,0.3);padding:7px 10px;font-size:11.5px">' +
+          '<span style="color:#8A6805;font-weight:700">' + U.icon('warehouse', 'mr4') + t.leftVenue + ' piece' + (t.leftVenue === 1 ? '' : 's') + ' logged as left at venue (can mark "Found" in History).</span>' +
+        '</div>'
+      ) : '';
+
+      var missingNotice = missing.length ? (
+        '<div class="card mb8" style="background:#FFF9F8;border:1px solid rgba(176,58,46,0.3);padding:7px 10px;font-size:11.5px">' +
+          '<span style="color:#B03A2E;font-weight:700">' + U.icon('alertTriangle', 'mr4') + t.missing + ' piece' + (t.missing === 1 ? '' : 's') + ' unaccounted or missing.</span>' +
         '</div>'
       ) : '';
 
       var html =
         '<div class="card mb12"><div class="row row-between" style="text-align:center">' +
-          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:var(--foliage);font-size:20px">' + t.pct + '%</div><div class="kpi-l">returned</div></div>' +
-          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.broken ? 'var(--alert)' : 'var(--timber-ink)') + ';font-size:20px">' + t.broken + '</div><div class="kpi-l">broken</div></div>' +
-          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.missing ? '#D49B42' : 'var(--timber-ink)') + ';font-size:20px">' + t.missing + '</div><div class="kpi-l">missing</div></div>' +
-          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:var(--timber-soft);font-size:20px">' + t.consumed + '</div><div class="kpi-l">supplies</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:var(--foliage);font-size:19px">' + t.pct + '%</div><div class="kpi-l">returned</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.broken ? 'var(--alert)' : 'var(--timber-ink)') + ';font-size:19px">' + t.broken + '</div><div class="kpi-l">broken</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.leftVenue ? '#8A6805' : 'var(--timber-ink)') + ';font-size:19px">' + t.leftVenue + '</div><div class="kpi-l">at venue</div></div>' +
+          '<div style="flex:1 1 0%"><div class="kpi-n" style="color:' + (t.missing ? '#B03A2E' : 'var(--timber-ink)') + ';font-size:19px">' + t.missing + '</div><div class="kpi-l">missing</div></div>' +
         '</div></div>' +
         brokenNotice +
-        (missing.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-missing" style="margin-right:8px"><span>Write off missing durable gear from stock</span></label>' : '') +
+        venueNotice +
+        missingNotice +
+        (missing.length || leftVenue.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-missing" style="margin-right:8px"><span>Write off missing & venue gear from commissary stock</span></label>' : '') +
         (used.length ? '<label class="row mb8" style="font-size:13px"><input type="checkbox" id="deduct-consumed" checked style="margin-right:8px"><span>Deduct consumed supplies from stock</span></label>' : '') +
         '<button type="button" class="btn btn-primary" data-act="confirm-close">Finish and file event</button>' +
         '<button type="button" class="btn btn-ghost mt8" data-act="sheet-close">Not yet</button>';
@@ -1412,8 +1434,10 @@ App.Views.catering = (function () {
     openPresetEditor: function (id) { if (Nav) Nav.clear(); return Kits.openPresetEditor(id, false); },
     openPresetManagerSheet: function () { if (Nav) Nav.clear(); return Kits.openPresetManagerSheet(false); },
     viewItemPhoto: function (id) { return Modals.viewItemPhoto(id); },
+    viewForeignPhoto: function (id) { return Modals.viewForeignPhoto(id); },
     openQtyModal: function (id, r) { if (Nav) Nav.clear(); return Modals.openQtyModal(id, r, false); },
     openPackReturnModal: function (id) { if (Nav) Nav.clear(); return Modals.openPackReturnModal(id, false); },
+    openAddForeignModal: function (foreignId) { if (Nav) Nav.clear(); return Modals.openAddForeignModal(false, foreignId); },
     openPresetOptionsSheet: function (ev) { if (Nav) Nav.clear(); return Kits.openPresetOptionsSheet(ev, false); },
     openKitPickerSheet: function (ev, s) { if (Nav) Nav.clear(); return Kits.openKitPickerSheet(ev, s, false); },
     openStockDiscrepancyModal: function (ev, p) { return openStockDiscrepancyModal(ev, p); },
