@@ -8,6 +8,7 @@
    - Foreign Item Flagging ("Not Ours") controller bindings & Photo hydration
    - Universal "Items per category" pagination: [ 2 | 3 | 5 | 10 | All ]
    - Bidirectional Swipe-to-Delete: Swipe left to reveal, right to close
+   - Unconditional Event Cancellation: Deletable even with 0 items staged
    ========================================================================== */
 window.App = window.App || {};
 App.Views = App.Views || {};
@@ -505,9 +506,13 @@ App.Views.catering = (function () {
       '</div>'
     ) : '';
 
+    /* Fixed Empty State: Now renders a Cancel/Discard booking button directly */
     if (!ev.lines.length) {
       return liveNotice + actionRow + U.empty('truck', 'Nothing loaded yet', 'Search gear, load a kit preset, or stage all stock.',
-        '<button type="button" class="btn btn-ghost cat-empty-btn" data-act="stage-all-inventory">' + U.icon('package', 'mr6') + ' Stage all stock</button>'
+        '<div class="row mt12" style="justify-content:center;gap:6px">' +
+          '<button type="button" class="btn btn-ghost cat-empty-btn mr4" data-act="stage-all-inventory">' + U.icon('package', 'mr6') + ' Stage all stock</button>' +
+          '<button type="button" class="btn btn-ghost cat-empty-btn" style="color:var(--alert);border-color:rgba(214,57,32,0.3)" data-act="cancel-event">' + U.icon('trash', 'mr4') + ' Discard booking</button>' +
+        '</div>'
       );
     }
 
@@ -1344,16 +1349,18 @@ App.Views.catering = (function () {
       return;
     }
 
-    if (act === 'cancel-event') {
-      U.confirm('Cancel event', 'Discard the active load-out completely?', 'Cancel event', function () {
+    /* Universal Event Cancellation & Deletion (Works with or without lines) */
+    if (act === 'cancel-event' || act === 'delete-event') {
+      U.confirm('Discard booking?', 'Discard this booking and remove it completely?', 'Discard booking', function () {
         S.removeEvent(ev.id);
         if (Nav) Nav.clear();
+        U.closeSheet();
         page = 1;
         catPages = {};
         onlyWarnings = false;
         chipsScrollLeft = 0;
         App.rerenderQuiet();
-        U.toast('Event cancelled.');
+        U.toast('Booking discarded.');
       });
       return;
     }

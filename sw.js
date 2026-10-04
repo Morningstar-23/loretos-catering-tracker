@@ -6,7 +6,7 @@
    - Controlled update lifecycle
    ========================================================================== */
 
-var CACHE = 'lct-v27';
+var CACHE = 'lct-v28';
 
 var SHELL = [
   './',

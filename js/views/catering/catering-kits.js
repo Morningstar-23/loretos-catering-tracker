@@ -10,6 +10,7 @@
    - Inline Catalog Steppers: 1-tap add and adjust without leaving search
    - Inter-Modal Routing Page Slide Animations (Push & Pop Transitions)
    - Full Modal Navigation Stack integration across all kit sub-sheets
+   - Event Deletion support: Discard/cancel directly from Edit Event modal
    - Optimized for iPhone 5s (iOS 12 / 320px viewport)
    ========================================================================== */
 window.App = window.App || {};
@@ -522,15 +523,15 @@ App.Views.Catering.Kits = (function () {
 
     if (!filtered.length) {
       return '<div class="row row-between mb8" style="font-size:11.5px;color:var(--timber-soft);align-items:center">' +
-          '<span>' + countSummary + '</span>' +
-          '<button type="button" class="muted" style="color:var(--inasal-orange);font-weight:700;font-size:11.5px;background:none;border:none;cursor:pointer" data-act="p-switch-tab" data-tab="add">+ Add more gear</button>' +
-        '</div>' +
-        '<div class="empty" style="padding:18px 10px">' +
-          '<p class="muted" style="font-size:12px;margin-bottom:8px">No gear in this kit matches your filter.</p>' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-act="p-clear-in-kit-filters" style="width:auto;min-height:28px;padding:0 12px;font-size:11px;margin:0 auto">' +
-            U.icon('refresh', 'mr4') + 'Clear filter' +
-          '</button>' +
-        '</div>';
+        '<span>' + countSummary + '</span>' +
+        '<button type="button" class="muted" style="color:var(--inasal-orange);font-weight:700;font-size:11.5px;background:none;border:none;cursor:pointer" data-act="p-switch-tab" data-tab="add">+ Add more gear</button>' +
+      '</div>' +
+      '<div class="empty" style="padding:18px 10px">' +
+        '<p class="muted" style="font-size:12px;margin-bottom:8px">No gear in this kit matches your filter.</p>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="p-clear-in-kit-filters" style="width:auto;min-height:28px;padding:0 12px;font-size:11px;margin:0 auto">' +
+          U.icon('refresh', 'mr4') + 'Clear filter' +
+        '</button>' +
+      '</div>';
     }
 
     var listRows = filtered.map(function (l) {
@@ -574,10 +575,10 @@ App.Views.Catering.Kits = (function () {
     }).join('');
 
     return '<div class="row row-between mb8" style="font-size:11.5px;color:var(--timber-soft);align-items:center">' +
-        '<span>' + countSummary + '</span>' +
-        '<button type="button" class="muted" style="color:var(--inasal-orange);font-weight:700;font-size:11.5px;background:none;border:none;cursor:pointer" data-act="p-switch-tab" data-tab="add">+ Add more gear</button>' +
-      '</div>' +
-      '<div class="list mb12">' + listRows + '</div>';
+      '<span>' + countSummary + '</span>' +
+      '<button type="button" class="muted" style="color:var(--inasal-orange);font-weight:700;font-size:11.5px;background:none;border:none;cursor:pointer" data-act="p-switch-tab" data-tab="add">+ Add more gear</button>' +
+    '</div>' +
+    '<div class="list mb12">' + listRows + '</div>';
   }
 
   function updatePresetItemsDOM() {
@@ -607,7 +608,7 @@ App.Views.Catering.Kits = (function () {
 
       var photoKey = it.photoId ? (it.photoId + '-t') : '';
       var cat = S.category(it.categoryId);
-      var brandLabel = it.brand || it.tagLabel || 'Loreto';
+      var brandLabel = it ? (it.brand || it.tagLabel || 'Loreto') : '';
 
       return '<div class="pack-row preset-item-card ' + (existingLine ? 'done' : '') + '" id="p-cat-row-' + it.id + '">' +
         /* TOP ROW: Full Item Name + In-Kit Status Pill */
@@ -658,7 +659,6 @@ App.Views.Catering.Kits = (function () {
     var inKitCount = editingPreset.lines.length;
     var isNewPreset = !editingPreset.id;
 
-    // Header Details Card: Compact for existing kits, fully open for new kits
     var metaCardHtml = isNewPreset ? (
       '<div class="field mb6">' +
         '<label for="p-name" style="font-size:11.5px;font-weight:700">Preset Name *</label>' +
@@ -693,7 +693,6 @@ App.Views.Catering.Kits = (function () {
       '</div>'
     );
 
-    // In-Kit Category Chips
     var inKitCatChips = '<button type="button" class="chip' + (inKitCat ? '' : ' on') + '" data-act="p-in-kit-cat" data-id="">All</button>' +
       S.categories().map(function (c) {
         return '<button type="button" class="chip' + (inKitCat === c.id ? ' on' : '') + '" data-act="p-in-kit-cat" data-id="' + c.id + '">' +
@@ -701,7 +700,6 @@ App.Views.Catering.Kits = (function () {
         '</button>';
       }).join('');
 
-    // Catalog Category Chips
     var catalogCatChips = '<button type="button" class="chip' + (presetCat ? '' : ' on') + '" data-act="p-filter-cat" data-id="">All</button>' +
       S.categories().map(function (c) {
         return '<button type="button" class="chip' + (presetCat === c.id ? ' on' : '') + '" data-act="p-filter-cat" data-id="' + c.id + '">' +
@@ -737,7 +735,6 @@ App.Views.Catering.Kits = (function () {
         '</div>');
 
     return metaCardHtml +
-      /* ANIMATED MAGIC PILL TAB BAR WITH DISTINCT ICONS */
       '<div class="seg seg-animated mb10" id="p-seg-tabs" style="margin-top:0">' +
         '<div class="seg-glider" id="p-seg-glider"></div>' +
         '<button type="button" class="' + (presetTab === 'items' ? 'on' : '') + '" data-act="p-switch-tab" data-tab="items">' +
@@ -754,7 +751,6 @@ App.Views.Catering.Kits = (function () {
     var p = presetId ? S.preset(presetId) : null;
     editingPreset = p ? S.clone(p) : { id: '', name: '', note: '', lines: [] };
 
-    // Reset filters and capture pristine snapshot on initial entry
     if (!isBack && !transitionDir) {
       initialPresetSnapshot = JSON.stringify(editingPreset);
       presetTab = editingPreset.lines.length ? 'items' : 'add';
@@ -828,7 +824,7 @@ App.Views.Catering.Kits = (function () {
   }
 
   /* --------------------------------------------------------------------------
-     EVENT METADATA FORM
+     EVENT METADATA FORM (Supports deleting/canceling an event directly)
      -------------------------------------------------------------------------- */
   function eventForm(ev, presetId, clampMode, isBack) {
     var p = presetId ? S.preset(presetId) : null;
@@ -837,6 +833,13 @@ App.Views.Catering.Kits = (function () {
     if (!isBack) {
       Nav.push(function (b) { eventForm(ev, presetId, clampMode, b); });
     }
+
+    // Direct deletion button available whenever an active event is being edited
+    var deleteBtn = ev ? (
+      '<button type="button" class="btn btn-danger btn-sm mt8" data-act="cancel-event">' +
+        U.icon('trash', 'mr4') + 'Discard this booking' +
+      '</button>'
+    ) : '';
 
     var cancelBtn = Nav.hasBack()
       ? '<button type="button" class="btn btn-ghost mt8" data-act="modal-back">&larr; Back</button>'
@@ -852,6 +855,7 @@ App.Views.Catering.Kits = (function () {
           (presetId ? ' data-preset="' + presetId + '"' : '') + (clampMode ? ' data-clamp="1"' : '') + '>' +
           (ev ? 'Save event details' : 'Start van load-out') +
         '</button>' +
+        deleteBtn +
         cancelBtn +
       '</div>';
 
@@ -895,7 +899,7 @@ App.Views.Catering.Kits = (function () {
     if (act === 'p-confirm-discard') {
       initialPresetSnapshot = null;
       editingPreset = null;
-      Nav.pop(); // pop confirmation
+      Nav.pop();
       if (Nav.hasBack()) {
         Nav.back();
       } else {
