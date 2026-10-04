@@ -4,6 +4,7 @@
    - Badges, Tags, Lists, Thumbnails, Swatches, Pickers
    - Search, Filters, Custom Dropdowns, Pagination bars
    - Reusable Bottom Sheets, Modals, Lightbox, Empty States
+   - Universal fluid responsiveness for all mobile screens
    ========================================================================== */
 
 /* Cards, Banners & KPIs */
@@ -1111,6 +1112,9 @@
   right: 0;
   bottom: 0;
   max-height: 88vh;
+  max-height: 88dvh;
+  max-width: 600px;
+  margin: 0 auto;
   background: var(--pandan-cream);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
@@ -1235,7 +1239,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Lightbox Modal */
+/* Lightbox Modal: Fluid & responsive across all screen sizes */
 .lightbox {
   position: fixed;
   top: 0; right: 0; bottom: 0; left: 0;
@@ -1263,9 +1267,10 @@
 .lightbox-dialog {
   position: relative;
   z-index: 2;
-  width: 100%;
-  max-width: 310px;
+  width: calc(100% - 24px);
+  max-width: 380px;
   max-height: 88vh;
+  max-height: 88dvh;
   background: var(--pandan-cream);
   border-radius: var(--r-lg);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
@@ -1319,6 +1324,7 @@
   justify-content: center;
   min-height: 200px;
   max-height: 58vh;
+  max-height: 58dvh;
   background: #191614;
   overflow: hidden;
 }
@@ -1334,6 +1340,7 @@
 .lightbox-img {
   max-width: 100%;
   max-height: 56vh;
+  max-height: 56dvh;
   object-fit: contain;
   border-radius: var(--r-sm);
   display: none;
@@ -1374,6 +1381,6 @@
 }
 .empty-desc {
   font-size: 12px;
-  max-width: 240px;
+  max-width: 260px;
   margin: 0 auto;
 }

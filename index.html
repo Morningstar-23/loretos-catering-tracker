@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <title>Loreto's Kitchen — Catering Tracker</title>
   
-  <!-- Optimized Viewport for iPhone 5s (iOS 12 Safari) -->
+  <!-- Universal Viewport for all iOS & Android screens -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
   <!-- Standard & Apple Mobile Web App PWA Configuration -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Use 'default' so status bar text is crisp black over the #FAF6F0 cream topbar & eliminates the WebKit chin offset bug -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Loreto's">
   <meta name="format-detection" content="telephone=no">
   <meta name="theme-color" content="#FAF6F0">
@@ -19,17 +20,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   
-  <!-- Apple Touch Home Screen Icons (iOS 12 / iPhone 5s) -->
+  <!-- Apple Touch Home Screen Icons -->
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
   
-  <!-- Native iOS Startup Splash Image for iPhone 5s (640x1136 Retina @2x, 320x568 pt) -->
-  <link rel="apple-touch-startup-image"
-        media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
-        href="icons/apple-splash-640x1136.png">
-  
   <!-- Primary Application Styles -->
-  <!-- <link rel="stylesheet" href="css/app.css"> -->
   <!-- 1. Tokens, Resets, Viewport Shell -->
   <link rel="stylesheet" href="css/base.css">
 
@@ -63,13 +58,16 @@
       z-index: 10;
     }
 
-    /* Floating Update Banner (Floats right above bottom tabs) */
+    /* Floating Update Banner (Dynamic Safe-Area Aware) */
     #update-banner {
       display: none;
       position: fixed;
-      bottom: 74px;
+      /* Floats neatly above the tabbar on both iPhone 5s (0px safe area) and iPhone XS (34px safe area) */
+      bottom: calc(66px + env(safe-area-inset-bottom, 0px));
       left: 12px;
       right: 12px;
+      max-width: 480px;
+      margin: 0 auto;
       background: #231F1C;
       color: #FAF6F0;
       padding: 12px 14px;

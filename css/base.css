@@ -3,7 +3,7 @@
    - Tokens (:root), resets, viewport lock
    - Topbar, View scroll area, Tabbar, Hero bubble
    - Layout primitives, spacing utilities, toast, splash
-   - iOS 12 Safari / iPhone 5s (320px viewport) optimized
+   - Universal for iPhone 5s (320px), iPhone XS / modern iOS & Android
    ========================================================================== */
 
 :root {
@@ -33,8 +33,11 @@
   --ink: var(--timber-ink);
   --ink-soft: var(--timber-soft);
 
+  /* Fallback chain for iOS 11 (constant) and modern iOS/Android (env) */
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 
   --r-sm: 7px;
   --r-md: 11px;
@@ -66,7 +69,10 @@ html, body {
   right: 0;
   bottom: 0;
   width: 100%;
-  height: 100%;
+  /* Modern Dynamic Viewport Height fixes the bottom chin gap */
+  height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
   overscroll-behavior-y: none;
@@ -96,8 +102,8 @@ body {
   right: 0;
   height: calc(50px + var(--sat));
   padding-top: var(--sat);
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: calc(12px + var(--sal));
+  padding-right: calc(12px + var(--sar));
   background-color: rgba(250, 246, 240, 0.94);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   backdrop-filter: saturate(180%) blur(16px);
@@ -181,7 +187,7 @@ body {
   opacity: 0.88;
 }
 
-/* Scroll Area strictly trapped inside #view */
+/* Scroll Area: Flexes perfectly across all screen sizes */
 #view {
   position: absolute;
   top: calc(50px + var(--sat));
@@ -193,7 +199,9 @@ body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   overscroll-behavior-y: contain;
-  padding: 14px 12px 48px 12px;
+  padding: 14px calc(12px + var(--sar)) 48px calc(12px + var(--sal));
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .view-enter {
@@ -221,7 +229,7 @@ body {
 .list-stagger > *:nth-child(9)  { animation-delay: 0.17s; }
 .list-stagger > *:nth-child(10) { animation-delay: 0.19s; }
 
-/* Bottom Tabbar with Elevated Hero Circle */
+/* Bottom Tabbar with Elevated Hero Circle: Anchored cleanly to the real bottom */
 #tabbar {
   position: fixed;
   bottom: 0;
@@ -229,6 +237,8 @@ body {
   right: 0;
   height: calc(56px + var(--sab));
   padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
   background: rgba(250, 246, 240, 0.94);
   -webkit-backdrop-filter: saturate(180%) blur(18px);
   backdrop-filter: saturate(180%) blur(18px);

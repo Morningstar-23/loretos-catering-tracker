@@ -3,7 +3,7 @@
    - Scope: #/dashboard route
    - Harmonized Active Booking Card (matches Catering header aesthetic)
    - Quick Action Shortcuts, KPI Grid, Stock Health & Activity Lists
-   - Strictly optimized for iPhone 5s (320px viewport) & iOS 12 Safari
+   - Universal scaling for iPhone 5s (320px) through iPhone XS (375px) & Android
    ========================================================================== */
 
 /* Dashboard View Container */
@@ -213,7 +213,7 @@
   line-height: 1.25;
 }
 
-/* KPI Grid Refinements (iPhone 5s / 320px) */
+/* KPI Grid Refinements (Default: iPhone 5s / 320px) */
 .dashboard-view .kpi-grid {
   margin-bottom: 12px;
 }
@@ -244,4 +244,20 @@
 }
 .dashboard-event-item:active {
   transform: scale(0.975);
+}
+
+/* Responsive refinements for screens >= 360px wide (iPhone XS, 11-16, modern Android) */
+@media (min-width: 360px) {
+  .dashboard-hero-card.cat-head {
+    padding: 15px 14px 12px 16px;
+  }
+  .cat-head-name {
+    font-size: 19px;
+  }
+  .dashboard-view .kpi {
+    padding: 11px 12px;
+  }
+  .dashboard-view .kpi-n {
+    font-size: 25px;
+  }
 }
